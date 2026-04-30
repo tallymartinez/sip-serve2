@@ -69,7 +69,7 @@ function Index() {
 
       <section className="container mx-auto px-4 py-20 grid gap-6 md:grid-cols-3">
         {[
-          { icon: GlassWater, title: "Two drinks daily", body: "Up to two signature cocktails per day, on the house, every day of your membership." },
+          { icon: GlassWater, title: "Two drinks daily", body: "Up to two signature cocktails per day, on the house. Excludes Luxury Classics and top-shelf spirits." },
           { icon: QrCode, title: "Scan & sip", body: "Your unique member QR is your key. Staff scans, drinks are redeemed instantly." },
           { icon: ShieldCheck, title: "Lock-in for 90 days", body: "Stay with us at least 90 days. After that, cancel any time from your dashboard." },
         ].map(({ icon: Icon, title, body }) => (
@@ -107,7 +107,7 @@ function Index() {
                 <p className="text-xs text-primary-glow mt-1">{t.note}</p>
 
                 <ul className="mt-6 space-y-2 text-sm text-left max-w-xs mx-auto">
-                  {["Two cocktails every night", "Personal QR member card", "Cancel anytime after 90 days"].map((b) => (
+                  {["Two cocktails every night", "Excludes Luxury Classics & top-shelf spirits", "Personal QR member card", "Cancel anytime after 90 days"].map((b) => (
                     <li key={b} className="flex items-start gap-2">
                       <Check className="mt-0.5 h-4 w-4 text-primary-glow shrink-0" />
                       <span className="text-muted-foreground">{b}</span>
