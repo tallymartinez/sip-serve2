@@ -253,11 +253,12 @@ function Dashboard() {
 
         {/* QR code */}
         <div className="rounded-2xl border border-border/60 bg-card p-8 shadow-card flex flex-col items-center text-center">
-          <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Show this at the bar</p>
+          <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Show this to your server</p>
           <div className="mt-4 rounded-xl bg-[oklch(0.14_0.015_20)] p-4 shadow-glow">
             {qrUrl ? <img src={qrUrl} alt="Member QR code" className="h-64 w-64 rounded-md" /> : <div className="h-64 w-64 animate-pulse rounded-md bg-muted" />}
           </div>
           <p className="mt-4 text-sm text-muted-foreground">Unique to you. Don't share it.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Tip: turn your screen brightness up for a faster scan.</p>
           <Link to="/redeem/$memberId" params={{ memberId: profile.id }} className="mt-2 text-xs text-primary-glow hover:underline">
             (test redemption page)
           </Link>
