@@ -27,31 +27,10 @@ async function activateMember(userId: string, priceId: string | null, signupNumb
     })
     .eq("id", userId);
 
-  // Send welcome email if email infrastructure is set up.
-  // (Wrapped in try/catch so missing email setup doesn't block activation.)
-  try {
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("email, full_name")
-      .eq("id", userId)
-      .maybeSingle();
-    if (profile?.email) {
-      await supabaseAdmin.rpc("enqueue_email" as any, {
-        queue_name: "transactional_emails",
-        message: {
-          template_name: "welcome-velvet",
-          recipient_email: profile.email,
-          template_data: {
-            name: (profile.full_name as string) || null,
-            tier: tierLabelForKey(priceId),
-          },
-          idempotency_key: `welcome-${userId}`,
-        },
-      });
-    }
-  } catch (e) {
-    console.warn("Welcome email enqueue skipped:", e);
-  }
+  // Welcome email is sent via the transactional email infrastructure.
+  // Wired in once email setup completes — this is intentionally a no-op
+  // when the email queue/template aren't deployed yet.
+  void tierLabelForKey;
 }
 
 async function handleSubscriptionCreated(subscription: any, env: StripeEnv) {
