@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ShieldOff, ShieldCheck, Pencil, Plus, Copy, Check, Trash2, KeyRound, UserPlus, X, Store, Pause, Play, Eye, EyeOff, Building2 } from "lucide-react";
+import { ShieldOff, ShieldCheck, Pencil, Plus, Copy, Check, Trash2, KeyRound, UserPlus, X, Store, Pause, Play, Eye, EyeOff, Building2, Download, BarChart3, RefreshCw } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -448,6 +448,7 @@ function Admin() {
         <TabsList>
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="logs">Redemption log</TabsTrigger>
+          <TabsTrigger value="venue-data">Venue data</TabsTrigger>
           <TabsTrigger value="employees">Servers</TabsTrigger>
           <TabsTrigger value="venues">Venues</TabsTrigger>
           <TabsTrigger value="admins">Admins</TabsTrigger>
@@ -521,6 +522,11 @@ function Admin() {
               </TableBody>
             </Table>
           </div>
+        </TabsContent>
+
+        {/* ===== Venue Data ===== */}
+        <TabsContent value="venue-data" className="mt-4">
+          <VenueDataPanel venues={companyVenues} employees={employees} />
         </TabsContent>
 
         {/* ===== Employees ===== */}
@@ -788,6 +794,378 @@ function Stat({ label, value }: { label: string; value: number }) {
     <div className="rounded-xl border border-border/60 bg-card p-5">
       <p className="text-xs uppercase tracking-widest text-muted-foreground">{label}</p>
       <p className="mt-2 font-display text-3xl">{value}</p>
+    </div>
+  );
+}
+
+type VenueRedemption = {
+  id: string;
+  redeemed_at: string;
+  redeemed_date: string;
+  drinks_redeemed: number;
+  user_id: string;
+  employee_id: string | null;
+  member_name: string;
+  member_email: string;
+  member_phone: string;
+  employee_name: string;
+  employee_code: string;
+};
+
+function todayISO() { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); }
+function daysAgoISO(n: number) { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - n); return d.toISOString().slice(0,10); }
+
+function csvEscape(v: string | number | null | undefined): string {
+  if (v === null || v === undefined) return "";
+  const s = String(v);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+function downloadCSV(filename: string, rows: (string | number | null | undefined)[][]) {
+  const csv = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function VenueDataPanel({ venues, employees }: { venues: Venue[]; employees: Employee[] }) {
+  const [venueId, setVenueId] = useState<string>(venues[0]?.id ?? "");
+  const [from, setFrom] = useState<string>(daysAgoISO(29));
+  const [to, setTo] = useState<string>(todayISO());
+  const [employeeFilter, setEmployeeFilter] = useState<string>("all");
+  const [allTime, setAllTime] = useState(false);
+  const [rows, setRows] = useState<VenueRedemption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [liveRows, setLiveRows] = useState<VenueRedemption[]>([]);
+
+  useEffect(() => {
+    if (venues.length > 0 && !venues.find((v) => v.id === venueId)) setVenueId(venues[0].id);
+  }, [venues, venueId]);
+
+  const venue = venues.find((v) => v.id === venueId) ?? null;
+  const venueEmployees = employees.filter((e) => e.venue_id === venueId);
+
+  async function load() {
+    if (!venueId) return;
+    setLoading(true);
+    try {
+      let q = supabase.from("redemptions")
+        .select("id,redeemed_at,redeemed_date,drinks_redeemed,user_id,employee_id")
+        .eq("venue_id", venueId)
+        .order("redeemed_at", { ascending: false });
+      if (!allTime) q = q.gte("redeemed_date", from).lte("redeemed_date", to);
+      if (employeeFilter !== "all") q = q.eq("employee_id", employeeFilter);
+      const { data: reds, error } = await q;
+      if (error) { toast.error(error.message); setRows([]); return; }
+      const list = reds ?? [];
+      const userIds = Array.from(new Set(list.map((r) => r.user_id)));
+      const empIds = Array.from(new Set(list.map((r) => r.employee_id).filter(Boolean) as string[]));
+      const [profRes, empRes] = await Promise.all([
+        userIds.length ? supabase.from("profiles").select("id,full_name,email,phone").in("id", userIds) : Promise.resolve({ data: [] as { id: string; full_name: string | null; email: string; phone: string | null }[] }),
+        empIds.length ? supabase.from("employees").select("id,full_name,employee_code").in("id", empIds) : Promise.resolve({ data: [] as { id: string; full_name: string; employee_code: string }[] }),
+      ]);
+      const pMap = new Map((profRes.data ?? []).map((p) => [p.id, p]));
+      const eMap = new Map((empRes.data ?? []).map((e) => [e.id, e]));
+      setRows(list.map((r) => {
+        const p = pMap.get(r.user_id);
+        const e = r.employee_id ? eMap.get(r.employee_id) : null;
+        return {
+          id: r.id, redeemed_at: r.redeemed_at, redeemed_date: r.redeemed_date,
+          drinks_redeemed: r.drinks_redeemed, user_id: r.user_id, employee_id: r.employee_id,
+          member_name: p?.full_name ?? "", member_email: p?.email ?? "", member_phone: p?.phone ?? "",
+          employee_name: e?.full_name ?? "", employee_code: e?.employee_code ?? "",
+        };
+      }));
+    } finally { setLoading(false); }
+  }
+
+  // Load when filters change
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [venueId, from, to, employeeFilter, allTime]);
+
+  // Live feed: latest 25 today, refresh every 15s
+  useEffect(() => {
+    if (!venueId) return;
+    let cancelled = false;
+    async function fetchLive() {
+      const { data: reds } = await supabase.from("redemptions")
+        .select("id,redeemed_at,redeemed_date,drinks_redeemed,user_id,employee_id")
+        .eq("venue_id", venueId)
+        .order("redeemed_at", { ascending: false })
+        .limit(25);
+      const list = reds ?? [];
+      const userIds = Array.from(new Set(list.map((r) => r.user_id)));
+      const empIds = Array.from(new Set(list.map((r) => r.employee_id).filter(Boolean) as string[]));
+      const [profRes, empRes] = await Promise.all([
+        userIds.length ? supabase.from("profiles").select("id,full_name,email,phone").in("id", userIds) : Promise.resolve({ data: [] as { id: string; full_name: string | null; email: string; phone: string | null }[] }),
+        empIds.length ? supabase.from("employees").select("id,full_name,employee_code").in("id", empIds) : Promise.resolve({ data: [] as { id: string; full_name: string; employee_code: string }[] }),
+      ]);
+      const pMap = new Map((profRes.data ?? []).map((p) => [p.id, p]));
+      const eMap = new Map((empRes.data ?? []).map((e) => [e.id, e]));
+      if (cancelled) return;
+      setLiveRows(list.map((r) => {
+        const p = pMap.get(r.user_id);
+        const e = r.employee_id ? eMap.get(r.employee_id) : null;
+        return {
+          id: r.id, redeemed_at: r.redeemed_at, redeemed_date: r.redeemed_date,
+          drinks_redeemed: r.drinks_redeemed, user_id: r.user_id, employee_id: r.employee_id,
+          member_name: p?.full_name ?? "", member_email: p?.email ?? "", member_phone: p?.phone ?? "",
+          employee_name: e?.full_name ?? "", employee_code: e?.employee_code ?? "",
+        };
+      }));
+    }
+    fetchLive();
+    const ch = supabase.channel(`venue-live-${venueId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "redemptions", filter: `venue_id=eq.${venueId}` }, () => fetchLive())
+      .subscribe();
+    const iv = setInterval(fetchLive, 15000);
+    return () => { cancelled = true; clearInterval(iv); supabase.removeChannel(ch); };
+  }, [venueId]);
+
+  // Aggregations
+  const totals = useMemo(() => {
+    const totalDrinks = rows.reduce((s, r) => s + r.drinks_redeemed, 0);
+    const uniqueMembers = new Set(rows.map((r) => r.user_id)).size;
+    const visits = rows.length;
+    return { totalDrinks, uniqueMembers, visits };
+  }, [rows]);
+
+  const memberSummary = useMemo(() => {
+    const m = new Map<string, { name: string; email: string; phone: string; visits: number; drinks: number; last: string }>();
+    for (const r of rows) {
+      const cur = m.get(r.user_id);
+      if (cur) {
+        cur.visits += 1; cur.drinks += r.drinks_redeemed;
+        if (r.redeemed_at > cur.last) cur.last = r.redeemed_at;
+      } else {
+        m.set(r.user_id, { name: r.member_name, email: r.member_email, phone: r.member_phone, visits: 1, drinks: r.drinks_redeemed, last: r.redeemed_at });
+      }
+    }
+    return Array.from(m.entries()).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.drinks - a.drinks);
+  }, [rows]);
+
+  const employeeSummary = useMemo(() => {
+    const m = new Map<string, { name: string; code: string; redemptions: number; drinks: number }>();
+    for (const r of rows) {
+      if (!r.employee_id) continue;
+      const cur = m.get(r.employee_id);
+      if (cur) { cur.redemptions += 1; cur.drinks += r.drinks_redeemed; }
+      else m.set(r.employee_id, { name: r.employee_name, code: r.employee_code, redemptions: 1, drinks: r.drinks_redeemed });
+    }
+    return Array.from(m.entries()).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.drinks - a.drinks);
+  }, [rows]);
+
+  const dailyTotals = useMemo(() => {
+    const m = new Map<string, { drinks: number; visits: number; members: Set<string> }>();
+    for (const r of rows) {
+      const cur = m.get(r.redeemed_date);
+      if (cur) { cur.drinks += r.drinks_redeemed; cur.visits += 1; cur.members.add(r.user_id); }
+      else m.set(r.redeemed_date, { drinks: r.drinks_redeemed, visits: 1, members: new Set([r.user_id]) });
+    }
+    return Array.from(m.entries()).map(([date, v]) => ({ date, drinks: v.drinks, visits: v.visits, members: v.members.size }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [rows]);
+
+  const fileSuffix = venue ? venue.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() : "venue";
+  const rangeSuffix = allTime ? "all-time" : `${from}_to_${to}`;
+
+  function exportRedemptions() {
+    const header = ["redeemed_at","date","venue","member_name","member_email","member_phone","drinks","server_name","server_id"];
+    const data = rows.map((r) => [r.redeemed_at, r.redeemed_date, venue?.name ?? "", r.member_name, r.member_email, r.member_phone, r.drinks_redeemed, r.employee_name, r.employee_code]);
+    downloadCSV(`redemptions_${fileSuffix}_${rangeSuffix}.csv`, [header, ...data]);
+  }
+  function exportMembers() {
+    const header = ["member_name","email","phone","visits","total_drinks","last_visit"];
+    const data = memberSummary.map((m) => [m.name, m.email, m.phone, m.visits, m.drinks, m.last]);
+    downloadCSV(`members_${fileSuffix}_${rangeSuffix}.csv`, [header, ...data]);
+  }
+  function exportEmployees() {
+    const header = ["server_name","server_id","redemptions","drinks_served"];
+    const data = employeeSummary.map((e) => [e.name, e.code, e.redemptions, e.drinks]);
+    downloadCSV(`servers_${fileSuffix}_${rangeSuffix}.csv`, [header, ...data]);
+  }
+  function exportDaily() {
+    const header = ["date","drinks","visits","unique_members"];
+    const data = dailyTotals.map((d) => [d.date, d.drinks, d.visits, d.members]);
+    downloadCSV(`daily_${fileSuffix}_${rangeSuffix}.csv`, [header, ...data]);
+  }
+
+  if (venues.length === 0) {
+    return <p className="text-sm text-muted-foreground">No venues yet — add one in the Venues tab.</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Filters */}
+      <div className="rounded-xl border border-border/60 bg-card p-4 grid gap-3 md:grid-cols-[1fr_auto_auto_1fr_auto] items-end">
+        <div>
+          <Label>Venue</Label>
+          <Select value={venueId} onValueChange={setVenueId}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {venues.map((v) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="from">From</Label>
+          <Input id="from" type="date" value={from} onChange={(e) => { setFrom(e.target.value); setAllTime(false); }} disabled={allTime} />
+        </div>
+        <div>
+          <Label htmlFor="to">To</Label>
+          <Input id="to" type="date" value={to} onChange={(e) => { setTo(e.target.value); setAllTime(false); }} disabled={allTime} />
+        </div>
+        <div>
+          <Label>Server</Label>
+          <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All servers</SelectItem>
+              {venueEmployees.map((e) => <SelectItem key={e.id} value={e.id}>{e.full_name} ({e.employee_code})</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch checked={allTime} onCheckedChange={setAllTime} id="all-time" />
+          <Label htmlFor="all-time" className="cursor-pointer">All time</Label>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Stat label="Drinks served" value={totals.totalDrinks} />
+        <Stat label="Redemption visits" value={totals.visits} />
+        <Stat label="Unique members" value={totals.uniqueMembers} />
+      </div>
+
+      {/* Export buttons */}
+      <div className="rounded-xl border border-border/60 bg-card p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Download className="h-4 w-4 text-primary-glow" />
+          <h3 className="font-display text-lg">Export to CSV</h3>
+          <span className="text-xs text-muted-foreground ml-auto">{allTime ? "All time" : `${from} → ${to}`}{employeeFilter !== "all" && " · filtered by server"}</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={exportRedemptions} className="bg-gradient-primary"><Download className="h-4 w-4 mr-1" />Redemptions ({rows.length})</Button>
+          <Button onClick={exportMembers} variant="outline"><Download className="h-4 w-4 mr-1" />Member visits ({memberSummary.length})</Button>
+          <Button onClick={exportEmployees} variant="outline"><Download className="h-4 w-4 mr-1" />Server activity ({employeeSummary.length})</Button>
+          <Button onClick={exportDaily} variant="outline"><Download className="h-4 w-4 mr-1" />Daily totals ({dailyTotals.length})</Button>
+        </div>
+      </div>
+
+      {/* Live feed */}
+      <div className="rounded-xl border border-border/60 bg-card overflow-x-auto">
+        <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+          <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-success"></span></span>
+          <h3 className="font-display text-lg">Live feed — {venue?.name}</h3>
+          <span className="text-xs text-muted-foreground ml-auto">Updates in real time · last 25 redemptions</span>
+        </div>
+        <Table>
+          <TableHeader><TableRow><TableHead>When</TableHead><TableHead>Member</TableHead><TableHead>Email</TableHead><TableHead>Server</TableHead><TableHead className="text-right">Drinks</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {liveRows.map((r) => (
+              <TableRow key={r.id}>
+                <TableCell className="text-muted-foreground">{new Date(r.redeemed_at).toLocaleString()}</TableCell>
+                <TableCell>{r.member_name || "—"}</TableCell>
+                <TableCell className="text-muted-foreground">{r.member_email}</TableCell>
+                <TableCell>{r.employee_name || "—"}</TableCell>
+                <TableCell className="text-right font-medium">{r.drinks_redeemed}</TableCell>
+              </TableRow>
+            ))}
+            {liveRows.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No redemptions yet at this venue</TableCell></TableRow>}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Detail tables */}
+      <Tabs defaultValue="redemptions">
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="redemptions"><BarChart3 className="h-4 w-4 mr-1" />Redemptions</TabsTrigger>
+            <TabsTrigger value="members">Member visits</TabsTrigger>
+            <TabsTrigger value="servers">Server activity</TabsTrigger>
+            <TabsTrigger value="daily">Daily totals</TabsTrigger>
+          </TabsList>
+          <Button size="sm" variant="ghost" onClick={load} disabled={loading}><RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />Refresh</Button>
+        </div>
+        <TabsContent value="redemptions" className="mt-4">
+          <div className="rounded-xl border border-border/60 bg-card overflow-x-auto">
+            <Table>
+              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>Member</TableHead><TableHead>Email</TableHead><TableHead>Phone</TableHead><TableHead>Server</TableHead><TableHead className="text-right">Drinks</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="text-muted-foreground whitespace-nowrap">{new Date(r.redeemed_at).toLocaleString()}</TableCell>
+                    <TableCell>{r.member_name || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.member_email}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.member_phone || "—"}</TableCell>
+                    <TableCell>{r.employee_name || "—"}</TableCell>
+                    <TableCell className="text-right font-medium">{r.drinks_redeemed}</TableCell>
+                  </TableRow>
+                ))}
+                {rows.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No redemptions in this range</TableCell></TableRow>}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+        <TabsContent value="members" className="mt-4">
+          <div className="rounded-xl border border-border/60 bg-card overflow-x-auto">
+            <Table>
+              <TableHeader><TableRow><TableHead>Member</TableHead><TableHead>Email</TableHead><TableHead>Phone</TableHead><TableHead className="text-right">Visits</TableHead><TableHead className="text-right">Drinks</TableHead><TableHead>Last visit</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {memberSummary.map((m) => (
+                  <TableRow key={m.id}>
+                    <TableCell>{m.name || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{m.email}</TableCell>
+                    <TableCell className="text-muted-foreground">{m.phone || "—"}</TableCell>
+                    <TableCell className="text-right">{m.visits}</TableCell>
+                    <TableCell className="text-right font-medium">{m.drinks}</TableCell>
+                    <TableCell className="text-muted-foreground whitespace-nowrap">{new Date(m.last).toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+                {memberSummary.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No data</TableCell></TableRow>}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+        <TabsContent value="servers" className="mt-4">
+          <div className="rounded-xl border border-border/60 bg-card overflow-x-auto">
+            <Table>
+              <TableHeader><TableRow><TableHead>Server</TableHead><TableHead>Server ID</TableHead><TableHead className="text-right">Redemptions</TableHead><TableHead className="text-right">Drinks</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {employeeSummary.map((e) => (
+                  <TableRow key={e.id}>
+                    <TableCell>{e.name || "—"}</TableCell>
+                    <TableCell className="font-mono text-muted-foreground">{e.code}</TableCell>
+                    <TableCell className="text-right">{e.redemptions}</TableCell>
+                    <TableCell className="text-right font-medium">{e.drinks}</TableCell>
+                  </TableRow>
+                ))}
+                {employeeSummary.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No data</TableCell></TableRow>}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+        <TabsContent value="daily" className="mt-4">
+          <div className="rounded-xl border border-border/60 bg-card overflow-x-auto">
+            <Table>
+              <TableHeader><TableRow><TableHead>Date</TableHead><TableHead className="text-right">Drinks</TableHead><TableHead className="text-right">Visits</TableHead><TableHead className="text-right">Unique members</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {dailyTotals.map((d) => (
+                  <TableRow key={d.date}>
+                    <TableCell>{d.date}</TableCell>
+                    <TableCell className="text-right font-medium">{d.drinks}</TableCell>
+                    <TableCell className="text-right">{d.visits}</TableCell>
+                    <TableCell className="text-right">{d.members}</TableCell>
+                  </TableRow>
+                ))}
+                {dailyTotals.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No data</TableCell></TableRow>}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
