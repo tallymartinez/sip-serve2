@@ -46,7 +46,7 @@ interface LogRow {
   user_id: string; employee_id: string | null;
   member_name: string; member_email: string; employee_name: string;
 }
-interface Employee { id: string; full_name: string; employee_code: string; active: boolean; }
+interface Employee { id: string; full_name: string; employee_code: string; active: boolean; drinks: number; }
 
 function Admin() {
   const { isAdmin, loading } = useAuth();
@@ -73,6 +73,12 @@ function Admin() {
     const tally = new Map<string, number>();
     for (const r of redemps.data ?? []) tally.set(r.user_id, (tally.get(r.user_id) ?? 0) + r.drinks_redeemed);
 
+    const empTally = new Map<string, number>();
+    for (const r of redemps.data ?? []) {
+      if (!r.employee_id) continue;
+      empTally.set(r.employee_id, (empTally.get(r.employee_id) ?? 0) + r.drinks_redeemed);
+    }
+
     setMembers((profiles.data ?? []).map((p) => ({
       id: p.id, full_name: p.full_name ?? "", email: p.email, phone: p.phone,
       subscription_status: p.subscription_status, subscription_started_at: p.subscription_started_at,
@@ -88,7 +94,13 @@ function Admin() {
         employee_name: r.employee_id ? (empMap.get(r.employee_id) ?? "—") : "—",
       };
     }));
-    setEmployees(emps.data ?? []);
+    setEmployees((emps.data ?? []).map((e) => ({
+      id: e.id,
+      full_name: e.full_name,
+      employee_code: e.employee_code,
+      active: e.active,
+      drinks: empTally.get(e.id) ?? 0,
+    })));
   }
 
   useEffect(() => { if (isAdmin) loadAll(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [isAdmin, since]);
@@ -270,7 +282,7 @@ function Admin() {
           </form>
           <div className="rounded-xl border border-border/60 bg-card overflow-x-auto">
             <Table>
-              <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Server ID</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Server ID</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Drinks ({range === "day" ? "today" : range === "week" ? "7d" : "30d"})</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
               <TableBody>
                 {employees.map((e) => (
                   <TableRow key={e.id}>
@@ -284,13 +296,14 @@ function Admin() {
                       </div>
                     </TableCell>
                     <TableCell><Badge className={e.active ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"}>{e.active ? "active" : "inactive"}</Badge></TableCell>
+                    <TableCell className="text-right font-medium">{e.drinks}</TableCell>
                     <TableCell className="text-right space-x-2">
                       <Button size="sm" variant="ghost" onClick={() => setEditingEmp(e)} title="Edit"><Pencil className="h-4 w-4" /></Button>
                       <Button size="sm" variant="outline" onClick={() => toggleEmployee(e)}>{e.active ? "Deactivate" : "Activate"}</Button>
                     </TableCell>
                   </TableRow>
                 ))}
-                {employees.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No servers yet</TableCell></TableRow>}
+                {employees.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No servers yet</TableCell></TableRow>}
               </TableBody>
             </Table>
           </div>
