@@ -744,6 +744,8 @@ function Admin() {
         </TabsContent>
       </Tabs>
 
+      <HomeContentTabBlock isAdmin={isAdmin} />
+
       {/* Member edit dialog */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent>
