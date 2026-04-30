@@ -14,8 +14,15 @@ import { ShieldOff, ShieldCheck, Pencil, Plus, Copy, Check } from "lucide-react"
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) throw redirect({ to: "/login" });
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) throw redirect({ to: "/login" });
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userData.user.id)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (!roles) throw redirect({ to: "/dashboard" });
   },
   component: Admin,
 });
@@ -87,7 +94,16 @@ function Admin() {
   useEffect(() => { if (isAdmin) loadAll(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [isAdmin, since]);
 
   if (loading) return <main className="container mx-auto px-4 py-16">Loading…</main>;
-  if (!isAdmin) return <main className="container mx-auto px-4 py-16">Admins only.</main>;
+  if (!isAdmin) {
+    return (
+      <main className="container mx-auto max-w-md px-4 py-16 text-center">
+        <h1 className="font-display text-2xl">Admins only</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          You need an admin account to manage members and servers.
+        </p>
+      </main>
+    );
+  }
 
   const totalDrinks = members.reduce((s, m) => s + m.drinks, 0);
   const activeCount = members.filter((m) => m.subscription_status === "active").length;
