@@ -110,7 +110,7 @@ function Home() {
           <div className="text-center max-w-2xl mx-auto">
             <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground inline-flex items-center gap-2"><Star className="h-3.5 w-3.5 text-primary-glow" /> The list</p>
             <h2 className="mt-3 font-display text-4xl md:text-5xl">Cocktails</h2>
-            <p className="mt-3 text-muted-foreground">$18 unless noted otherwise. Crafted nightly at the Old Vines bar.</p>
+            <p className="mt-3 text-muted-foreground">$18 unless noted otherwise. Crafted nightly at Old Vines at Mercato.</p>
           </div>
           <div className="mt-14 space-y-14 max-w-5xl mx-auto">
             {cocktailSections.map((section) => (
