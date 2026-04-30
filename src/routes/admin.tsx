@@ -1954,6 +1954,26 @@ function HomeContentEditor() {
               <Label>Body</Label>
               <Textarea rows={3} value={content.closingBody} onChange={(e) => updateField("closingBody", e.target.value)} />
             </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label>External link button label</Label>
+                <Input
+                  placeholder="e.g. Visit our website"
+                  value={content.closingLinkLabel ?? ""}
+                  onChange={(e) => updateField("closingLinkLabel", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>External link URL</Label>
+                <Input
+                  type="url"
+                  placeholder="https://example.com"
+                  value={content.closingLinkUrl ?? ""}
+                  onChange={(e) => updateField("closingLinkUrl", e.target.value)}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">Both label and URL are required for the button to appear. Opens in a new tab.</p>
             <ImageUploader
               label="Closing image (above 'Pull up a stool')"
               value={content.closingImageUrl ?? ""}
