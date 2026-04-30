@@ -242,6 +242,86 @@ export type Database = {
           },
         ]
       }
+      referral_code_uses: {
+        Row: {
+          id: string
+          referral_code_id: string
+          used_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          referral_code_id: string
+          used_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          referral_code_id?: string
+          used_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_code_uses_referral_code_id_fkey"
+            columns: ["referral_code_id"]
+            isOneToOne: false
+            referencedRelation: "referral_codes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_codes: {
+        Row: {
+          active: boolean
+          assigned_to_name: string | null
+          assigned_to_user_id: string | null
+          code: string
+          company_id: string | null
+          created_at: string
+          created_by: string | null
+          discount_type: string
+          discount_value: number
+          expires_at: string | null
+          id: string
+          max_uses: number | null
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          assigned_to_name?: string | null
+          assigned_to_user_id?: string | null
+          code: string
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          discount_type: string
+          discount_value: number
+          expires_at?: string | null
+          id?: string
+          max_uses?: number | null
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          assigned_to_name?: string | null
+          assigned_to_user_id?: string | null
+          code?: string
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          discount_type?: string
+          discount_value?: number
+          expires_at?: string | null
+          id?: string
+          max_uses?: number | null
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           cancel_at_period_end: boolean | null
@@ -405,8 +485,19 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      redeem_referral_code: { Args: { _code: string }; Returns: string }
       tier_price_for_signup: { Args: { _n: number }; Returns: number }
       user_company_id: { Args: { _user_id: string }; Returns: string }
+      validate_referral_code: {
+        Args: { _code: string }
+        Returns: {
+          assigned_to_name: string
+          code: string
+          discount_type: string
+          discount_value: number
+          id: string
+        }[]
+      }
       verify_admin_code: {
         Args: { _code: string; _member_id: string }
         Returns: string

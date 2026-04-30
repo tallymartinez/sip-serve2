@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ShieldOff, ShieldCheck, Pencil, Plus, Copy, Check, Trash2, KeyRound, UserPlus, X, Store, Pause, Play, Eye, EyeOff, Building2, Download, BarChart3, RefreshCw } from "lucide-react";
+import { ShieldOff, ShieldCheck, Pencil, Plus, Copy, Check, Trash2, KeyRound, UserPlus, X, Store, Pause, Play, Eye, EyeOff, Building2, Download, BarChart3, RefreshCw, Ticket, Power } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -452,6 +452,7 @@ function Admin() {
           <TabsTrigger value="employees">Servers</TabsTrigger>
           <TabsTrigger value="venues">Venues</TabsTrigger>
           <TabsTrigger value="admins">Admins</TabsTrigger>
+          <TabsTrigger value="referrals">Referrals</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
@@ -658,6 +659,11 @@ function Admin() {
               </TableBody>
             </Table>
           </div>
+        </TabsContent>
+
+        {/* ===== Referrals ===== */}
+        <TabsContent value="referrals" className="mt-4">
+          {activeCompanyId && <ReferralCodesPanel companyId={activeCompanyId} members={members} />}
         </TabsContent>
 
         {/* ===== Settings ===== */}
@@ -1238,6 +1244,343 @@ function VenueEditForm({ venue, onSave, onCancel }: { venue: Venue; onSave: (pat
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
         <Button type="submit" className="bg-gradient-primary">Save venue</Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+interface ReferralCode {
+  id: string;
+  code: string;
+  company_id: string | null;
+  assigned_to_user_id: string | null;
+  assigned_to_name: string | null;
+  notes: string | null;
+  discount_type: "fixed" | "percent";
+  discount_value: number;
+  max_uses: number | null;
+  expires_at: string | null;
+  active: boolean;
+  created_at: string;
+}
+interface CodeUseRow {
+  id: string;
+  referral_code_id: string;
+  user_id: string;
+  used_at: string;
+  member_name: string;
+  member_email: string;
+}
+
+function ReferralCodesPanel({ companyId, members }: { companyId: string; members: MemberRow[] }) {
+  const [codes, setCodes] = useState<ReferralCode[]>([]);
+  const [uses, setUses] = useState<CodeUseRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState<ReferralCode | null>(null);
+  const [showUsesFor, setShowUsesFor] = useState<ReferralCode | null>(null);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("referral_codes")
+        .select("*")
+        .or(`company_id.eq.${companyId},company_id.is.null`)
+        .order("created_at", { ascending: false });
+      if (error) { toast.error(error.message); return; }
+      const list = (data ?? []) as ReferralCode[];
+      setCodes(list);
+
+      // Load all uses for these codes
+      const ids = list.map((c) => c.id);
+      if (ids.length === 0) { setUses([]); return; }
+      const { data: useRows } = await supabase
+        .from("referral_code_uses")
+        .select("*")
+        .in("referral_code_id", ids)
+        .order("used_at", { ascending: false });
+      const userIds = Array.from(new Set((useRows ?? []).map((u) => u.user_id)));
+      const profMap = new Map<string, { full_name: string | null; email: string }>();
+      if (userIds.length > 0) {
+        const { data: profs } = await supabase.from("profiles").select("id,full_name,email").in("id", userIds);
+        for (const p of profs ?? []) profMap.set(p.id, { full_name: p.full_name, email: p.email });
+      }
+      setUses((useRows ?? []).map((u) => {
+        const p = profMap.get(u.user_id);
+        return { id: u.id, referral_code_id: u.referral_code_id, user_id: u.user_id, used_at: u.used_at, member_name: p?.full_name ?? "", member_email: p?.email ?? "" };
+      }));
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [companyId]);
+
+  async function createCode(form: FormData) {
+    const code = String(form.get("code") ?? "").trim();
+    const discount_type = String(form.get("discount_type") ?? "percent") as "fixed" | "percent";
+    const valueRaw = String(form.get("discount_value") ?? "").trim();
+    const value = parseFloat(valueRaw);
+    if (!/^[A-Za-z0-9_-]{3,40}$/.test(code)) return toast.error("Code: 3–40 letters, numbers, dashes/underscores");
+    if (Number.isNaN(value) || value <= 0) return toast.error("Discount value required");
+    if (discount_type === "percent" && value > 100) return toast.error("Percent must be ≤ 100");
+    const discount_value = discount_type === "fixed" ? Math.round(value * 100) : Math.round(value);
+    const assigned_to_name = String(form.get("assigned_to_name") ?? "").trim() || null;
+    const assigned_to_user_id = String(form.get("assigned_to_user_id") ?? "") || null;
+    const notes = String(form.get("notes") ?? "").trim() || null;
+    const max_uses_raw = String(form.get("max_uses") ?? "").trim();
+    const max_uses = max_uses_raw ? parseInt(max_uses_raw, 10) : null;
+    const expires_at_raw = String(form.get("expires_at") ?? "").trim();
+    const expires_at = expires_at_raw ? new Date(expires_at_raw + "T23:59:59").toISOString() : null;
+
+    const { error } = await supabase.from("referral_codes").insert({
+      code, company_id: companyId, assigned_to_user_id, assigned_to_name, notes,
+      discount_type, discount_value, max_uses, expires_at, active: true,
+    });
+    if (error) {
+      if (error.code === "23505") return toast.error("That code is already in use");
+      return toast.error(error.message);
+    }
+    toast.success("Referral code created");
+    load();
+  }
+
+  async function toggleActive(c: ReferralCode) {
+    const { error } = await supabase.from("referral_codes").update({ active: !c.active }).eq("id", c.id);
+    if (error) return toast.error(error.message);
+    load();
+  }
+  async function deleteCode(c: ReferralCode) {
+    if (!confirm(`Delete code "${c.code}"? This also removes its usage history.`)) return;
+    const { error } = await supabase.from("referral_codes").delete().eq("id", c.id);
+    if (error) return toast.error(error.message);
+    toast.success("Code deleted");
+    load();
+  }
+  async function saveEdit(patch: Partial<ReferralCode>): Promise<void> {
+    if (!editing) return;
+    const { error } = await supabase.from("referral_codes").update(patch).eq("id", editing.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Code updated");
+    setEditing(null);
+    load();
+  }
+
+  function formatDiscount(c: ReferralCode) {
+    return c.discount_type === "percent" ? `${c.discount_value}%` : `$${(c.discount_value / 100).toFixed(2)}`;
+  }
+  function usesCount(codeId: string) {
+    return uses.filter((u) => u.referral_code_id === codeId).length;
+  }
+  function isExpired(c: ReferralCode) {
+    return c.expires_at ? new Date(c.expires_at) < new Date() : false;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Create form */}
+      <form
+        onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); createCode(fd); e.currentTarget.reset(); }}
+        className="rounded-xl border border-border/60 bg-card p-4 space-y-3"
+      >
+        <div className="flex items-center gap-2">
+          <Ticket className="h-5 w-5 text-primary-glow" />
+          <h3 className="font-display text-lg">Create a referral code</h3>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <div>
+            <Label htmlFor="code">Code</Label>
+            <Input id="code" name="code" placeholder="SARAH10" required maxLength={40} className="uppercase tracking-widest" />
+          </div>
+          <div>
+            <Label htmlFor="discount_type">Discount type</Label>
+            <select id="discount_type" name="discount_type" defaultValue="percent" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+              <option value="percent">Percent (%)</option>
+              <option value="fixed">Fixed dollars ($)</option>
+            </select>
+          </div>
+          <div>
+            <Label htmlFor="discount_value">Value</Label>
+            <Input id="discount_value" name="discount_value" type="number" min="0.01" step="0.01" placeholder="10" required />
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <Label htmlFor="assigned_to_user_id">Assigned member (optional)</Label>
+            <select id="assigned_to_user_id" name="assigned_to_user_id" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+              <option value="">— None —</option>
+              {members.map((m) => <option key={m.id} value={m.id}>{m.full_name || m.email}</option>)}
+            </select>
+          </div>
+          <div>
+            <Label htmlFor="assigned_to_name">Or assigned name (free text)</Label>
+            <Input id="assigned_to_name" name="assigned_to_name" placeholder="Bartender Sarah / @influencer" maxLength={100} />
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <div>
+            <Label htmlFor="max_uses">Usage limit (optional)</Label>
+            <Input id="max_uses" name="max_uses" type="number" min="1" placeholder="Unlimited" />
+          </div>
+          <div>
+            <Label htmlFor="expires_at">Expires (optional)</Label>
+            <Input id="expires_at" name="expires_at" type="date" />
+          </div>
+          <div>
+            <Label htmlFor="notes">Notes (optional)</Label>
+            <Input id="notes" name="notes" maxLength={200} placeholder="Internal notes" />
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <Button type="submit" className="bg-gradient-primary"><Plus className="h-4 w-4 mr-1" />Create code</Button>
+        </div>
+      </form>
+
+      {/* Codes table */}
+      <div className="rounded-xl border border-border/60 bg-card overflow-x-auto">
+        <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+          <h3 className="font-display text-lg">Referral codes</h3>
+          <Button size="sm" variant="ghost" onClick={load} disabled={loading}><RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />Refresh</Button>
+        </div>
+        <Table>
+          <TableHeader><TableRow>
+            <TableHead>Code</TableHead><TableHead>Assigned to</TableHead>
+            <TableHead>Discount</TableHead><TableHead className="text-right">Uses</TableHead>
+            <TableHead>Expires</TableHead><TableHead>Status</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>
+            {codes.map((c) => {
+              const used = usesCount(c.id);
+              const limitText = c.max_uses ? `${used}/${c.max_uses}` : `${used}`;
+              const expired = isExpired(c);
+              const exhausted = c.max_uses !== null && used >= c.max_uses;
+              return (
+                <TableRow key={c.id}>
+                  <TableCell className="font-mono font-medium tracking-widest uppercase">{c.code}</TableCell>
+                  <TableCell>
+                    {c.assigned_to_user_id
+                      ? (members.find((m) => m.id === c.assigned_to_user_id)?.full_name ?? members.find((m) => m.id === c.assigned_to_user_id)?.email ?? "—")
+                      : (c.assigned_to_name || "—")}
+                    {c.notes && <div className="text-xs text-muted-foreground mt-0.5">{c.notes}</div>}
+                  </TableCell>
+                  <TableCell className="font-medium">{formatDiscount(c)}</TableCell>
+                  <TableCell className="text-right">
+                    <button type="button" className="text-primary-glow hover:underline" onClick={() => setShowUsesFor(c)}>{limitText}</button>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{c.expires_at ? new Date(c.expires_at).toLocaleDateString() : "—"}</TableCell>
+                  <TableCell>
+                    {!c.active && <Badge className="bg-muted text-muted-foreground">inactive</Badge>}
+                    {c.active && expired && <Badge className="bg-destructive text-destructive-foreground">expired</Badge>}
+                    {c.active && !expired && exhausted && <Badge className="bg-destructive text-destructive-foreground">used up</Badge>}
+                    {c.active && !expired && !exhausted && <Badge className="bg-success text-success-foreground">active</Badge>}
+                  </TableCell>
+                  <TableCell className="text-right space-x-1">
+                    <Button size="sm" variant="ghost" onClick={() => setEditing(c)} title="Edit"><Pencil className="h-4 w-4" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => toggleActive(c)} title={c.active ? "Deactivate" : "Activate"}><Power className={`h-4 w-4 ${c.active ? "text-success" : "text-muted-foreground"}`} /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => deleteCode(c)} title="Delete"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {codes.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No referral codes yet</TableCell></TableRow>}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Edit dialog */}
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit referral code</DialogTitle></DialogHeader>
+          {editing && (
+            <ReferralEditForm code={editing} members={members} onSave={saveEdit} onCancel={() => setEditing(null)} />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Uses dialog */}
+      <Dialog open={!!showUsesFor} onOpenChange={(o) => !o && setShowUsesFor(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Members who used "{showUsesFor?.code}"</DialogTitle></DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto">
+            <Table>
+              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>Member</TableHead><TableHead>Email</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {showUsesFor && uses.filter((u) => u.referral_code_id === showUsesFor.id).map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell className="text-muted-foreground">{new Date(u.used_at).toLocaleString()}</TableCell>
+                    <TableCell>{u.member_name || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{u.member_email}</TableCell>
+                  </TableRow>
+                ))}
+                {showUsesFor && uses.filter((u) => u.referral_code_id === showUsesFor.id).length === 0 && (
+                  <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-8">No uses yet</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function ReferralEditForm({ code, members, onSave, onCancel }: { code: ReferralCode; members: MemberRow[]; onSave: (patch: Partial<ReferralCode>) => void | Promise<void>; onCancel: () => void }) {
+  const [draft, setDraft] = useState({
+    code: code.code,
+    discount_type: code.discount_type,
+    discount_value: code.discount_type === "fixed" ? (code.discount_value / 100).toString() : code.discount_value.toString(),
+    assigned_to_user_id: code.assigned_to_user_id ?? "",
+    assigned_to_name: code.assigned_to_name ?? "",
+    notes: code.notes ?? "",
+    max_uses: code.max_uses?.toString() ?? "",
+    expires_at: code.expires_at ? code.expires_at.slice(0, 10) : "",
+  });
+
+  function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const value = parseFloat(draft.discount_value);
+    if (Number.isNaN(value) || value <= 0) return toast.error("Discount value required");
+    if (draft.discount_type === "percent" && value > 100) return toast.error("Percent must be ≤ 100");
+    onSave({
+      code: draft.code.trim(),
+      discount_type: draft.discount_type,
+      discount_value: draft.discount_type === "fixed" ? Math.round(value * 100) : Math.round(value),
+      assigned_to_user_id: draft.assigned_to_user_id || null,
+      assigned_to_name: draft.assigned_to_name.trim() || null,
+      notes: draft.notes.trim() || null,
+      max_uses: draft.max_uses ? parseInt(draft.max_uses, 10) : null,
+      expires_at: draft.expires_at ? new Date(draft.expires_at + "T23:59:59").toISOString() : null,
+    });
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-3">
+      <div><Label>Code</Label><Input value={draft.code} onChange={(e) => setDraft({ ...draft, code: e.target.value })} required maxLength={40} className="uppercase tracking-widest" /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Discount type</Label>
+          <select value={draft.discount_type} onChange={(e) => setDraft({ ...draft, discount_type: e.target.value as "fixed" | "percent" })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+            <option value="percent">Percent (%)</option>
+            <option value="fixed">Fixed dollars ($)</option>
+          </select>
+        </div>
+        <div><Label>Value</Label><Input type="number" min="0.01" step="0.01" value={draft.discount_value} onChange={(e) => setDraft({ ...draft, discount_value: e.target.value })} required /></div>
+      </div>
+      <div>
+        <Label>Assigned member</Label>
+        <select value={draft.assigned_to_user_id} onChange={(e) => setDraft({ ...draft, assigned_to_user_id: e.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+          <option value="">— None —</option>
+          {members.map((m) => <option key={m.id} value={m.id}>{m.full_name || m.email}</option>)}
+        </select>
+      </div>
+      <div><Label>Or name (free text)</Label><Input value={draft.assigned_to_name} onChange={(e) => setDraft({ ...draft, assigned_to_name: e.target.value })} maxLength={100} /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><Label>Usage limit</Label><Input type="number" min="1" placeholder="Unlimited" value={draft.max_uses} onChange={(e) => setDraft({ ...draft, max_uses: e.target.value })} /></div>
+        <div><Label>Expires</Label><Input type="date" value={draft.expires_at} onChange={(e) => setDraft({ ...draft, expires_at: e.target.value })} /></div>
+      </div>
+      <div><Label>Notes</Label><Input value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} maxLength={200} /></div>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button type="submit" className="bg-gradient-primary">Save</Button>
       </DialogFooter>
     </form>
   );
