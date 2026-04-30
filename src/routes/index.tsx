@@ -136,9 +136,14 @@ function Home() {
           <h1 className="mt-6 font-display text-5xl md:text-7xl leading-[1.05]">
             Where every pour <span className="text-gradient">tells a story.</span>
           </h1>
-          <p className="mt-6 text-lg text-muted-foreground">
-            A members' cocktail club for those who take their nightcap seriously. Crafted recipes, rare spirits, and a seat at the bar that's always yours.
-          </p>
+          <div className="mt-8 text-left text-base md:text-lg text-muted-foreground space-y-4">
+            <p className="font-display text-2xl md:text-3xl text-foreground text-center">Welcome to Old Vines Cocktail Club</p>
+            <p>There's something special about gathering around a well-made drink—the quiet ritual of preparation, the first sip, the stories that follow. At Old Vines, we believe cocktails are more than recipes; they're a bridge between past and present, a way to honor tradition while exploring something new.</p>
+            <p>As a member, you're now part of a community that appreciates craftsmanship, curiosity, and good company. Here, we celebrate the depth of aged spirits, the character of thoughtfully sourced ingredients, and the subtle art of balance in every glass. Whether you're a seasoned enthusiast or just beginning your journey, there's always something new to discover.</p>
+            <p>Expect evenings filled with conversation, experimentation, and the occasional surprise. Share your favorites, learn from others, and don't be afraid to challenge convention—some of the best cocktails come from unexpected twists.</p>
+            <p>Pull up a chair, raise a glass, and make yourself at home.</p>
+            <p className="italic">Cheers,<br/>Old Vines Cocktail Club</p>
+          </div>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
             <Link to="/membership"><Button size="lg" className="bg-gradient-primary shadow-glow">Become a member</Button></Link>
             <Link to="/login"><Button size="lg" variant="outline">Member sign in</Button></Link>
