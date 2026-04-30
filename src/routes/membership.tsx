@@ -44,7 +44,7 @@ function Index() {
             <Sparkles className="h-3.5 w-3.5 text-primary-glow" /> Members only
           </div>
           <h1 className="mt-6 font-display text-5xl md:text-7xl leading-[1.05]">
-            Two crafted cocktails. <span className="text-gradient">Every night.</span>
+            Two crafted cocktails. <span className="text-gradient">Every day.</span>
           </h1>
           <p className="mt-6 text-lg text-muted-foreground">
             One subscription. Walk in, scan, sip. Your seat at the bar is always reserved.
