@@ -1183,7 +1183,98 @@ function VenueDataPanel({ venues, employees }: { venues: Venue[]; employees: Emp
   );
 }
 
-function ImageUploader({ label, value, onChange }: { label: string; value: string; onChange: (url: string) => void }) {
+type DisplaySettings = Omit<ImageDisplay, "url">;
+
+function DisplayControls({
+  url,
+  display,
+  onChange,
+  defaultHeight,
+}: {
+  url: string;
+  display: DisplaySettings | undefined;
+  onChange: (next: DisplaySettings) => void;
+  defaultHeight: number;
+}) {
+  const fit = display?.fit ?? "cover";
+  const posX = display?.posX ?? 50;
+  const posY = display?.posY ?? 50;
+  const height = display?.height ?? defaultHeight;
+  return (
+    <div className="mt-3 grid gap-3 rounded-md border border-border/60 bg-background/40 p-3 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <Label className="text-xs">Live preview</Label>
+        <div
+          className="mt-1 overflow-hidden rounded-md border border-border/60 bg-card"
+          style={{ height: `${Math.min(height, 220)}px` }}
+        >
+          {url ? (
+            <img
+              src={url}
+              alt=""
+              className="w-full h-full"
+              style={{ objectFit: fit, objectPosition: `${posX}% ${posY}%` }}
+            />
+          ) : (
+            <div className="h-full w-full flex items-center justify-center text-xs text-muted-foreground">Upload an image to preview</div>
+          )}
+        </div>
+      </div>
+      <div>
+        <Label className="text-xs">Fit</Label>
+        <Select value={fit} onValueChange={(v) => onChange({ ...display, fit: v as "cover" | "contain" })}>
+          <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="cover">Fill frame (may crop)</SelectItem>
+            <SelectItem value="contain">Show whole photo</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label className="text-xs">Height: {height}px</Label>
+        <input
+          type="range" min={160} max={720} step={10} value={height}
+          onChange={(e) => onChange({ ...display, height: Number(e.target.value) })}
+          className="mt-2 w-full"
+        />
+      </div>
+      <div>
+        <Label className="text-xs">Horizontal focus: {posX}%</Label>
+        <input
+          type="range" min={0} max={100} step={1} value={posX}
+          onChange={(e) => onChange({ ...display, posX: Number(e.target.value) })}
+          className="mt-2 w-full"
+        />
+      </div>
+      <div>
+        <Label className="text-xs">Vertical focus: {posY}%</Label>
+        <input
+          type="range" min={0} max={100} step={1} value={posY}
+          onChange={(e) => onChange({ ...display, posY: Number(e.target.value) })}
+          className="mt-2 w-full"
+        />
+      </div>
+      <div className="sm:col-span-2 flex justify-end">
+        <Button type="button" variant="outline" size="sm"
+          onClick={() => onChange({ fit: "cover", posX: 50, posY: 50, height: defaultHeight })}>
+          Reset view
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ImageUploader({
+  label, value, onChange,
+  display, onDisplayChange, defaultHeight = 320,
+}: {
+  label: string;
+  value: string;
+  onChange: (url: string) => void;
+  display?: DisplaySettings;
+  onDisplayChange?: (next: DisplaySettings) => void;
+  defaultHeight?: number;
+}) {
   const [uploading, setUploading] = useState(false);
   async function handleFile(file: File) {
     if (!file.type.startsWith("image/")) return toast.error("Please choose an image file");
@@ -1219,6 +1310,9 @@ function ImageUploader({ label, value, onChange }: { label: string; value: strin
         </div>
       </div>
       {uploading && <p className="text-xs text-muted-foreground">Uploading…</p>}
+      {value && onDisplayChange && (
+        <DisplayControls url={value} display={display} onChange={onDisplayChange} defaultHeight={defaultHeight} />
+      )}
     </div>
   );
 }
