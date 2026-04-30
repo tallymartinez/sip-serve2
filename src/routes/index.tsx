@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Wine, Sparkles, QrCode, ShieldCheck, Check } from "lucide-react";
+import { GlassWater, Sparkles, QrCode, ShieldCheck, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -69,7 +69,7 @@ function Index() {
 
       <section className="container mx-auto px-4 py-20 grid gap-6 md:grid-cols-3">
         {[
-          { icon: Wine, title: "Two drinks daily", body: "Up to two signature cocktails per day, on the house, every day of your membership." },
+          { icon: GlassWater, title: "Two drinks daily", body: "Up to two signature cocktails per day, on the house, every day of your membership." },
           { icon: QrCode, title: "Scan & sip", body: "Your unique member QR is your key. Staff scans, drinks are redeemed instantly." },
           { icon: ShieldCheck, title: "Lock-in for 90 days", body: "Stay with us at least 90 days. After that, cancel any time from your dashboard." },
         ].map(({ icon: Icon, title, body }) => (

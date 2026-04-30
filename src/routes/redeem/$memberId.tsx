@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Wine, CheckCircle2, Lock, Store } from "lucide-react";
+import { GlassWater, CheckCircle2, Lock, Store } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/redeem/$memberId")({
@@ -214,7 +214,7 @@ function Redeem() {
             </Badge>
           </div>
           <div className="mt-4 flex items-center gap-3 rounded-lg bg-background/50 border border-border/60 p-4">
-            <Wine className="h-6 w-6 text-primary-glow" />
+            <GlassWater className="h-6 w-6 text-primary-glow" />
             <div>
               <p className="font-display text-xl"><span className="text-gradient">{info.remaining}</span> <span className="text-muted-foreground text-sm">/ {company?.daily_drink_limit ?? 2} left today (across all {company?.name ?? "company"} venues)</span></p>
             </div>
