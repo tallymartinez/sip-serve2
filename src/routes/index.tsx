@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { GlassWater, Sparkles, Flame, Star, Wine, Beer } from "lucide-react";
+import { GlassWater, Sparkles, Star, Wine, Beer } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -13,12 +13,6 @@ export const Route = createFileRoute("/")({
   }),
   component: Home,
 });
-
-const promotions = [
-  { title: "Two-for-Tuesday", body: "Members bring a friend on Tuesdays — second cocktail on the house.", tag: "Weekly" },
-  { title: "Barrel-Aged Friday", body: "First pour of the new barrel-aged Old Fashioned drops every Friday at 7pm.", tag: "Limited" },
-  { title: "Founders' Hour", body: "Founding members get a complimentary tasting flight on the first Sunday of each month.", tag: "Founders" },
-];
 
 const cocktailSections: { heading: string; subtitle?: string; items: { name: string; notes: string; price?: string }[] }[] = [
   {
@@ -107,24 +101,6 @@ function Home() {
             <Link to="/membership"><Button size="lg" className="bg-gradient-primary shadow-glow">Become a member</Button></Link>
             <Link to="/login"><Button size="lg" variant="outline">Member sign in</Button></Link>
           </div>
-        </div>
-      </section>
-
-      {/* Promotions */}
-      <section className="container mx-auto px-4 py-20">
-        <div className="text-center max-w-2xl mx-auto">
-          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground inline-flex items-center gap-2"><Flame className="h-3.5 w-3.5 text-primary-glow" /> What's pouring</p>
-          <h2 className="mt-3 font-display text-4xl md:text-5xl">Member promotions</h2>
-          <p className="mt-3 text-muted-foreground">Limited drops, weekly rituals, and quiet little perks reserved for the Club.</p>
-        </div>
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
-          {promotions.map((p) => (
-            <div key={p.title} className="rounded-xl border border-border/60 bg-card p-6 shadow-card">
-              <span className="inline-block rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] uppercase tracking-widest text-primary-glow">{p.tag}</span>
-              <h3 className="mt-3 font-display text-2xl">{p.title}</h3>
-              <p className="mt-2 text-sm text-muted-foreground">{p.body}</p>
-            </div>
-          ))}
         </div>
       </section>
 
