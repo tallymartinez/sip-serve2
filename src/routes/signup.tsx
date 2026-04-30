@@ -33,7 +33,7 @@ const schema = z.object({
   referral_code: z.string().trim().max(40).optional(),
 });
 
-type ValidatedCode = { id: string; code: string; discount_type: "fixed" | "percent"; discount_value: number; assigned_to_name: string | null };
+type ValidatedCode = { id: string; code: string; discount_type: "fixed" | "percent" | null; discount_value: number | null; assigned_to_name: string | null };
 
 function Signup() {
   const router = useRouter();
@@ -134,7 +134,11 @@ function Signup() {
             </div>
             {refValid && (
               <p className="mt-1 text-xs text-success">
-                ✓ {refValid.discount_type === "percent" ? `${refValid.discount_value}% off` : `$${(refValid.discount_value / 100).toFixed(2)} off`}
+                ✓ {refValid.discount_type === "percent" && refValid.discount_value != null
+                    ? `${refValid.discount_value}% off`
+                    : refValid.discount_type === "fixed" && refValid.discount_value != null
+                      ? `$${(refValid.discount_value / 100).toFixed(2)} off`
+                      : "Code applied"}
                 {refValid.assigned_to_name ? ` — referred by ${refValid.assigned_to_name}` : ""}
               </p>
             )}
