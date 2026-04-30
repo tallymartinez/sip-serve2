@@ -236,6 +236,48 @@ export type Database = {
         }
         Relationships: []
       }
+      venue_settings: {
+        Row: {
+          daily_drink_limit: number
+          id: boolean
+          paused_message: string | null
+          redemptions_paused: boolean
+          updated_at: string
+          updated_by: string | null
+          venue_address: string | null
+          venue_email: string | null
+          venue_name: string
+          venue_phone: string | null
+          venue_pin: string
+        }
+        Insert: {
+          daily_drink_limit?: number
+          id?: boolean
+          paused_message?: string | null
+          redemptions_paused?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          venue_address?: string | null
+          venue_email?: string | null
+          venue_name?: string
+          venue_phone?: string | null
+          venue_pin?: string
+        }
+        Update: {
+          daily_drink_limit?: number
+          id?: boolean
+          paused_message?: string | null
+          redemptions_paused?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          venue_address?: string | null
+          venue_email?: string | null
+          venue_name?: string
+          venue_phone?: string | null
+          venue_pin?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
