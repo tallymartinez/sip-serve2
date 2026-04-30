@@ -1724,6 +1724,24 @@ function HomeContentEditor() {
               <Label>Body</Label>
               <Textarea rows={3} value={content.closingBody} onChange={(e) => updateField("closingBody", e.target.value)} />
             </div>
+            <ImageUploader
+              label="Closing image (above 'Pull up a stool')"
+              value={content.closingImageUrl ?? ""}
+              onChange={(url) => updateField("closingImageUrl", url)}
+            />
+          </div>
+
+          <div className="rounded-xl border border-border/60 bg-card p-5 space-y-4">
+            <h3 className="font-medium">Pictures</h3>
+            <ImageUploader
+              label="Hero background image"
+              value={content.heroImageUrl ?? ""}
+              onChange={(url) => updateField("heroImageUrl", url)}
+            />
+            <GalleryUploader
+              value={content.galleryImages ?? []}
+              onChange={(urls) => updateField("galleryImages", urls)}
+            />
           </div>
 
           <div className="flex justify-end">
