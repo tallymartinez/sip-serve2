@@ -60,25 +60,33 @@ function Header() {
   const router = useRouter();
   return (
     <header className="border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link to="/" className="flex items-center gap-2">
-          <GlassWater className="h-6 w-6 text-primary-glow" />
-          <span className="font-display text-xl tracking-wide">O.V. Cocktail Club</span>
+      <div className="container mx-auto flex min-h-16 flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-4">
+        <Link to="/" className="flex items-center gap-2 min-w-0 shrink">
+          <GlassWater className="h-5 w-5 sm:h-6 sm:w-6 text-primary-glow shrink-0" />
+          <span className="font-display text-base sm:text-xl tracking-wide truncate">
+            <span className="sm:hidden">O.V. Club</span>
+            <span className="hidden sm:inline">O.V. Cocktail Club</span>
+          </span>
         </Link>
-        <nav className="flex items-center gap-2">
+        <nav className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
           {user ? (
             <>
-              <Link to="/dashboard"><Button variant="ghost" size="sm">My card</Button></Link>
-              {isEmployee && <Link to="/staff"><Button variant="ghost" size="sm">Staff</Button></Link>}
-              {isAdmin && <Link to="/admin"><Button variant="ghost" size="sm">Admin</Button></Link>}
-              <Button variant="outline" size="sm" onClick={async () => { await signOut(); router.navigate({ to: "/" }); }}>
+              <Link to="/dashboard"><Button variant="ghost" size="sm" className="px-2 sm:px-3">My card</Button></Link>
+              {isEmployee && <Link to="/staff"><Button variant="ghost" size="sm" className="px-2 sm:px-3">Staff</Button></Link>}
+              {isAdmin && <Link to="/admin"><Button variant="ghost" size="sm" className="px-2 sm:px-3">Admin</Button></Link>}
+              <Button variant="outline" size="sm" className="px-2 sm:px-3" onClick={async () => { await signOut(); router.navigate({ to: "/" }); }}>
                 <LogOut className="h-4 w-4" />
               </Button>
             </>
           ) : (
             <>
-              <Link to="/login"><Button variant="ghost" size="sm">Sign in</Button></Link>
-              <Link to="/membership"><Button size="sm" className="bg-gradient-primary shadow-glow">Become a member</Button></Link>
+              <Link to="/login"><Button variant="ghost" size="sm" className="px-2 sm:px-3">Sign in</Button></Link>
+              <Link to="/membership">
+                <Button size="sm" className="bg-gradient-primary shadow-glow px-2.5 sm:px-3">
+                  <span className="sm:hidden">Join</span>
+                  <span className="hidden sm:inline">Become a member</span>
+                </Button>
+              </Link>
             </>
           )}
         </nav>
