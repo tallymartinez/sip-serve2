@@ -1,7 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { GlassWater, Sparkles, Star, Wine, Beer, ChevronDown } from "lucide-react";
+import { GlassWater, Sparkles, Star, ChevronDown } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -121,10 +122,25 @@ const supperClubBeers: { style: string; name: string; origin: string; abv: strin
 ];
 
 function Home() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  useEffect(() => {
+    if (!loading && !user) {
+      router.navigate({ to: "/membership" });
+    }
+  }, [loading, user, router]);
+
   const [cocktailsOpen, setCocktailsOpen] = useState(false);
   const [supperOpen, setSupperOpen] = useState(false);
-  const [beerOpen, setBeerOpen] = useState(false);
-  const [supperBeerOpen, setSupperBeerOpen] = useState(false);
+
+  if (loading || !user) {
+    return (
+      <main className="container mx-auto px-4 py-24 text-center text-muted-foreground">
+        Loading…
+      </main>
+    );
+  }
+
   return (
     <main>
       {/* Hero */}
@@ -145,8 +161,7 @@ function Home() {
             <p className="italic">Cheers,<br/>Old Vines Cocktail Club</p>
           </div>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
-            <Link to="/membership"><Button size="lg" className="bg-gradient-primary shadow-glow">Become a member</Button></Link>
-            <Link to="/login"><Button size="lg" variant="outline">Member sign in</Button></Link>
+            <Link to="/dashboard"><Button size="lg" className="bg-gradient-primary shadow-glow">My member card</Button></Link>
           </div>
         </div>
       </section>
@@ -234,7 +249,7 @@ function Home() {
         <h2 className="mt-4 font-display text-4xl md:text-5xl">Pull up a stool.</h2>
         <p className="mt-3 text-muted-foreground">Two cocktails every day, on the house, for the price of a decent bottle of wine. Membership is intentionally small.</p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Link to="/membership"><Button size="lg" className="bg-gradient-primary shadow-glow">See membership</Button></Link>
+          <Link to="/dashboard"><Button size="lg" className="bg-gradient-primary shadow-glow">Open my card</Button></Link>
         </div>
       </section>
     </main>
