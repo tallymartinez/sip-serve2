@@ -1,8 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHost, getRequestHeader } from "@tanstack/react-start/server";
 import Stripe from "stripe";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import type { Database } from "@/integrations/supabase/types";
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -16,10 +17,25 @@ function originFromRequest() {
   return `${proto}://${host}`;
 }
 
+async function getUserFromToken(accessToken: string) {
+  const supabase = createClient<Database>(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_PUBLISHABLE_KEY!,
+    {
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+    },
+  );
+  const { data, error } = await supabase.auth.getUser(accessToken);
+  if (error || !data.user) throw new Error("Unauthorized");
+  return { supabase, user: data.user };
+}
+
 export const createCheckout = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, userId, claims } = context;
+  .inputValidator((d: { accessToken: string }) => d)
+  .handler(async ({ data }) => {
+    const { supabase, user } = await getUserFromToken(data.accessToken);
+    const userId = user.id;
     const stripe = getStripe();
 
     // Load profile to get/lock the price
@@ -44,7 +60,7 @@ export const createCheckout = createServerFn({ method: "POST" })
     let customerId = profile.stripe_customer_id;
     if (!customerId) {
       const customer = await stripe.customers.create({
-        email: profile.email ?? (claims.email as string | undefined),
+        email: profile.email ?? user.email ?? undefined,
         name: profile.full_name || undefined,
         metadata: { user_id: userId },
       });
@@ -83,9 +99,10 @@ export const createCheckout = createServerFn({ method: "POST" })
   });
 
 export const createPortalSession = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, userId } = context;
+  .inputValidator((d: { accessToken: string }) => d)
+  .handler(async ({ data }) => {
+    const { supabase, user } = await getUserFromToken(data.accessToken);
+    const userId = user.id;
     const stripe = getStripe();
 
     const { data: profile } = await supabase
