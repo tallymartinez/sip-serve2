@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { createCheckout, createPortalSession } from "@/server/stripe.functions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CalendarClock, Mail, User as UserIcon, Wine, ExternalLink, Check, Sparkles } from "lucide-react";
@@ -89,14 +90,30 @@ function Dashboard() {
   }, [user, redeemUrl]);
 
   async function manageSubscription() {
-    toast.info("Stripe portal not configured yet — your admin will enable this soon.");
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Not signed in");
+      const res = await createPortalSession({ data: { accessToken: token } });
+      if (res?.url) window.location.href = res.url;
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "Could not open billing portal");
+    }
   }
 
   async function startCheckout() {
     setCheckoutBusy(true);
     try {
-      // Stripe checkout edge function will be wired once the secret key is added.
-      toast.info("Stripe checkout will activate once the Stripe secret key is added.");
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Not signed in");
+      const res = await createCheckout({ data: { accessToken: token } });
+      if (res?.url) window.location.href = res.url;
+      else throw new Error("No checkout URL returned");
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "Could not start checkout");
     } finally {
       setCheckoutBusy(false);
     }
