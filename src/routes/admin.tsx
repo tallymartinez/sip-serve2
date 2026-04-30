@@ -46,7 +46,7 @@ interface LogRow {
   user_id: string; employee_id: string | null;
   member_name: string; member_email: string; employee_name: string;
 }
-interface Employee { id: string; full_name: string; employee_code: string; active: boolean; drinks: number; }
+interface Employee { id: string; full_name: string; employee_code: string; active: boolean; drinks: number; drinks_all: number; }
 
 function Admin() {
   const { isAdmin, loading } = useAuth();
@@ -61,9 +61,10 @@ function Admin() {
   const since = useMemo(() => rangeStart(range), [range]);
 
   async function loadAll() {
-    const [profiles, redemps, emps] = await Promise.all([
+    const [profiles, redemps, allRedemps, emps] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("redemptions").select("*").gte("redeemed_date", since).order("redeemed_at", { ascending: false }),
+      supabase.from("redemptions").select("employee_id,drinks_redeemed"),
       supabase.from("employees").select("*").order("created_at", { ascending: false }),
     ]);
 
@@ -77,6 +78,12 @@ function Admin() {
     for (const r of redemps.data ?? []) {
       if (!r.employee_id) continue;
       empTally.set(r.employee_id, (empTally.get(r.employee_id) ?? 0) + r.drinks_redeemed);
+    }
+
+    const empTallyAll = new Map<string, number>();
+    for (const r of allRedemps.data ?? []) {
+      if (!r.employee_id) continue;
+      empTallyAll.set(r.employee_id, (empTallyAll.get(r.employee_id) ?? 0) + r.drinks_redeemed);
     }
 
     setMembers((profiles.data ?? []).map((p) => ({
@@ -100,6 +107,7 @@ function Admin() {
       employee_code: e.employee_code,
       active: e.active,
       drinks: empTally.get(e.id) ?? 0,
+      drinks_all: empTallyAll.get(e.id) ?? 0,
     })));
   }
 
@@ -282,7 +290,7 @@ function Admin() {
           </form>
           <div className="rounded-xl border border-border/60 bg-card overflow-x-auto">
             <Table>
-              <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Server ID</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Drinks ({range === "day" ? "today" : range === "week" ? "7d" : "30d"})</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Server ID</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Drinks ({range === "day" ? "today" : range === "week" ? "7d" : "30d"})</TableHead><TableHead className="text-right">All-time</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
               <TableBody>
                 {employees.map((e) => (
                   <TableRow key={e.id}>
@@ -297,13 +305,14 @@ function Admin() {
                     </TableCell>
                     <TableCell><Badge className={e.active ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"}>{e.active ? "active" : "inactive"}</Badge></TableCell>
                     <TableCell className="text-right font-medium">{e.drinks}</TableCell>
+                    <TableCell className="text-right font-medium">{e.drinks_all}</TableCell>
                     <TableCell className="text-right space-x-2">
                       <Button size="sm" variant="ghost" onClick={() => setEditingEmp(e)} title="Edit"><Pencil className="h-4 w-4" /></Button>
                       <Button size="sm" variant="outline" onClick={() => toggleEmployee(e)}>{e.active ? "Deactivate" : "Activate"}</Button>
                     </TableCell>
                   </TableRow>
                 ))}
-                {employees.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No servers yet</TableCell></TableRow>}
+                {employees.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No servers yet</TableCell></TableRow>}
               </TableBody>
             </Table>
           </div>
