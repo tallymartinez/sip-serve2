@@ -78,7 +78,7 @@ function Header() {
           ) : (
             <>
               <Link to="/login"><Button variant="ghost" size="sm">Sign in</Button></Link>
-              <Link to="/signup"><Button size="sm" className="bg-gradient-primary shadow-glow">Become a member</Button></Link>
+              <Link to="/membership"><Button size="sm" className="bg-gradient-primary shadow-glow">Become a member</Button></Link>
             </>
           )}
         </nav>

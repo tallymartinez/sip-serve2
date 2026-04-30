@@ -1,126 +1,102 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { GlassWater, Sparkles, QrCode, ShieldCheck, Check } from "lucide-react";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { GlassWater, Sparkles, Flame, Star } from "lucide-react";
 
-export const Route = createFileRoute("/")({ component: Index });
+export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "O.V. Cocktail Club — Crafted cocktails, every night" },
+      { name: "description", content: "Discover signature cocktails, member promotions, and the O.V. Cocktail Club experience." },
+      { property: "og:title", content: "O.V. Cocktail Club" },
+      { property: "og:description", content: "Crafted cocktails, members-only promotions, every night." },
+    ],
+  }),
+  component: Home,
+});
 
-interface TierInfo {
-  total_members: number;
-  next_signup_number: number;
-  price_cents: number;
-  spots_left_in_tier: number | null;
-}
+const promotions = [
+  { title: "Two-for-Tuesday", body: "Members bring a friend on Tuesdays — second cocktail on the house.", tag: "Weekly" },
+  { title: "Barrel-Aged Friday", body: "First pour of the new barrel-aged Old Fashioned drops every Friday at 7pm.", tag: "Limited" },
+  { title: "Founders' Hour", body: "Founding members get a complimentary tasting flight on the first Sunday of each month.", tag: "Founders" },
+];
 
-function Index() {
-  const [tier, setTier] = useState<TierInfo | null>(null);
+const cocktails = [
+  { name: "Velvet Negroni", notes: "Campari, sweet vermouth, barrel-rested gin. Bittersweet, silky, unforgettable.", accent: "Bitter · Stirred" },
+  { name: "Smoke & Stone", notes: "Mezcal, charred pineapple, lime, a whisper of habanero. Smoldering and bright.", accent: "Smoky · Shaken" },
+  { name: "Midnight Garden", notes: "Gin, elderflower, cucumber, basil oil. Crisp, herbal, garden-fresh.", accent: "Herbal · Crisp" },
+  { name: "Old Vines Old Fashioned", notes: "Single-barrel bourbon, demerara, black walnut bitters, orange oil.", accent: "Spirit-forward" },
+];
 
-  useEffect(() => {
-    supabase.rpc("current_tier_info").then(({ data }) => {
-      if (Array.isArray(data) && data.length) setTier(data[0] as TierInfo);
-    });
-  }, []);
-
-  const currentTierIndex = tier
-    ? tier.next_signup_number <= 100
-      ? 0
-      : tier.next_signup_number <= 200
-        ? 1
-        : 2
-    : 0;
-
-  const tiers = [
-    { name: "Founders", price: 80, range: "Members 1–100", note: "Founding rate" },
-    { name: "Early", price: 90, range: "Members 101–200", note: "Early rate" },
-    { name: "Standard", price: 100, range: "Members 201+", note: "Current rate" },
-  ];
-
+function Home() {
   return (
     <main>
+      {/* Hero */}
       <section className="bg-hero relative overflow-hidden">
         <div className="container mx-auto px-4 py-24 md:py-32 text-center max-w-3xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/40 px-4 py-1.5 text-xs uppercase tracking-[0.2em] text-muted-foreground">
-            <Sparkles className="h-3.5 w-3.5 text-primary-glow" /> Members only
+            <GlassWater className="h-3.5 w-3.5 text-primary-glow" /> O.V. Cocktail Club
           </div>
           <h1 className="mt-6 font-display text-5xl md:text-7xl leading-[1.05]">
-            Two crafted cocktails. <span className="text-gradient">Every night.</span>
+            Where every pour <span className="text-gradient">tells a story.</span>
           </h1>
           <p className="mt-6 text-lg text-muted-foreground">
-            One subscription. Walk in, scan, sip. Your seat at the bar is always reserved.
+            A members' cocktail club for those who take their nightcap seriously. Crafted recipes, rare spirits, and a seat at the bar that's always yours.
           </p>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
-            <Link to="/signup"><Button size="lg" className="bg-gradient-primary shadow-glow">Become a member</Button></Link>
+            <Link to="/membership"><Button size="lg" className="bg-gradient-primary shadow-glow">Become a member</Button></Link>
             <Link to="/login"><Button size="lg" variant="outline">Member sign in</Button></Link>
           </div>
-          {tier && (
-            <p className="mt-6 text-sm text-muted-foreground">
-              Join now at{" "}
-              <span className="text-primary-glow font-semibold">
-                ${(tier.price_cents / 100).toFixed(0)}/mo
-              </span>
-              {tier.spots_left_in_tier !== null && tier.spots_left_in_tier > 0 && (
-                <> · only {tier.spots_left_in_tier} spot{tier.spots_left_in_tier === 1 ? "" : "s"} left at this price</>
-              )}
-            </p>
-          )}
         </div>
       </section>
 
-      <section className="container mx-auto px-4 py-20 grid gap-6 md:grid-cols-3">
-        {[
-          { icon: GlassWater, title: "Two drinks daily", body: "Up to two signature cocktails per day, on the house, every day of your membership." },
-          { icon: QrCode, title: "Scan & sip", body: "Your unique member QR is your key. Staff scans, drinks are redeemed instantly." },
-          { icon: ShieldCheck, title: "Lock-in for 90 days", body: "Stay with us at least 90 days. After that, cancel any time from your dashboard." },
-        ].map(({ icon: Icon, title, body }) => (
-          <div key={title} className="rounded-xl border border-border/60 bg-card p-6 shadow-card">
-            <Icon className="h-6 w-6 text-primary-glow" />
-            <h3 className="mt-4 font-display text-xl">{title}</h3>
-            <p className="mt-2 text-sm text-muted-foreground">{body}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="container mx-auto px-4 pb-24">
+      {/* Promotions */}
+      <section className="container mx-auto px-4 py-20">
         <div className="text-center max-w-2xl mx-auto">
-          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Membership pricing</p>
-          <h2 className="mt-3 font-display text-4xl md:text-5xl">The earlier you join, the less you pay — forever.</h2>
-          <p className="mt-3 text-muted-foreground">
-            Your price locks in the day you sign up. It never goes up, even when the next tier opens.
-          </p>
+          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground inline-flex items-center gap-2"><Flame className="h-3.5 w-3.5 text-primary-glow" /> What's pouring</p>
+          <h2 className="mt-3 font-display text-4xl md:text-5xl">Member promotions</h2>
+          <p className="mt-3 text-muted-foreground">Limited drops, weekly rituals, and quiet little perks reserved for the Club.</p>
         </div>
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
+          {promotions.map((p) => (
+            <div key={p.title} className="rounded-xl border border-border/60 bg-card p-6 shadow-card">
+              <span className="inline-block rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] uppercase tracking-widest text-primary-glow">{p.tag}</span>
+              <h3 className="mt-3 font-display text-2xl">{p.title}</h3>
+              <p className="mt-2 text-sm text-muted-foreground">{p.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
-        <div className="mt-12 max-w-md mx-auto">
-          {(() => {
-            const t = tiers[currentTierIndex];
-            return (
-              <div className="rounded-2xl border border-primary/60 bg-velvet p-8 shadow-velvet relative text-center">
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-primary px-3 py-1 text-xs uppercase tracking-widest text-primary-foreground shadow-glow">
-                  Available now
+      {/* Cocktail menu */}
+      <section className="bg-velvet/30 border-y border-border/40">
+        <div className="container mx-auto px-4 py-20">
+          <div className="text-center max-w-2xl mx-auto">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground inline-flex items-center gap-2"><Star className="h-3.5 w-3.5 text-primary-glow" /> The list</p>
+            <h2 className="mt-3 font-display text-4xl md:text-5xl">Signature cocktails</h2>
+            <p className="mt-3 text-muted-foreground">A rotating list of house originals, refined over countless late nights behind the bar.</p>
+          </div>
+          <div className="mt-12 grid gap-6 md:grid-cols-2">
+            {cocktails.map((c) => (
+              <div key={c.name} className="rounded-xl border border-border/60 bg-card/80 p-6 shadow-card">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="font-display text-2xl">{c.name}</h3>
+                  <GlassWater className="h-6 w-6 text-primary-glow shrink-0" />
                 </div>
-                <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">{t.name} tier</p>
-                <div className="mt-3 flex items-baseline justify-center gap-1">
-                  <span className="font-display text-6xl text-gradient">${t.price}</span>
-                  <span className="text-muted-foreground">/ mo</span>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">{t.range}</p>
-                <p className="text-xs text-primary-glow mt-1">{t.note}</p>
-
-                <ul className="mt-6 space-y-2 text-sm text-left max-w-xs mx-auto">
-                  {["Two cocktails every night", "Personal QR member card", "Cancel anytime after 90 days"].map((b) => (
-                    <li key={b} className="flex items-start gap-2">
-                      <Check className="mt-0.5 h-4 w-4 text-primary-glow shrink-0" />
-                      <span className="text-muted-foreground">{b}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <Link to="/signup" className="mt-6 block">
-                  <Button className="w-full bg-gradient-primary shadow-glow">Claim ${t.price}/mo</Button>
-                </Link>
+                <p className="mt-2 text-sm text-muted-foreground">{c.notes}</p>
+                <p className="mt-3 text-[11px] uppercase tracking-[0.25em] text-primary-glow">{c.accent}</p>
               </div>
-            );
-          })()}
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Closing CTA */}
+      <section className="container mx-auto px-4 py-24 text-center max-w-2xl">
+        <Sparkles className="mx-auto h-6 w-6 text-primary-glow" />
+        <h2 className="mt-4 font-display text-4xl md:text-5xl">Pull up a stool.</h2>
+        <p className="mt-3 text-muted-foreground">Two cocktails every night, on the house, for the price of a decent bottle of wine. Membership is intentionally small.</p>
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <Link to="/membership"><Button size="lg" className="bg-gradient-primary shadow-glow">See membership</Button></Link>
         </div>
       </section>
     </main>
