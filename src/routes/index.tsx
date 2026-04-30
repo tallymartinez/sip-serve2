@@ -68,6 +68,7 @@ const cocktailSections: { heading: string; subtitle?: string; items: { name: str
   },
   {
     heading: "Luxury Classics",
+    subtitle: "Not included with O.V. Cocktail Club membership",
     items: [
       { name: "Angel's Envy Rye Old Fashioned", notes: "", price: "28" },
       { name: "WhistlePig 10 Rye Manhattan", notes: "", price: "32" },
