@@ -145,7 +145,7 @@ function Dashboard() {
           <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Velvet Club Membership</p>
           <h1 className="mt-3 font-display text-4xl md:text-5xl">Two cocktails a night. Every night.</h1>
           <p className="mt-3 text-muted-foreground max-w-xl mx-auto">
-            Walk in, show your QR, drink. No tabs, no decisions, no surprises.
+            Walk in, show your QR, drink.
           </p>
 
           <div className="mt-8 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-1.5 text-xs uppercase tracking-widest text-primary-glow">
