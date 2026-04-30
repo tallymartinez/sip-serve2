@@ -55,9 +55,10 @@ function Home() {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("home_content").select("data").eq("id", "default").maybeSingle().then(({ data }) => {
-      if (data?.data) setContent(mergeHomeContent(data.data as Partial<HomeContent>));
-    });
+    (supabase.from("home_content" as never).select("data").eq("id" as never, "default" as never).maybeSingle() as unknown as Promise<{ data: { data: Partial<HomeContent> } | null }>)
+      .then(({ data }) => {
+        if (data?.data) setContent(mergeHomeContent(data.data));
+      });
   }, [user]);
 
   if (loading || !user) {
