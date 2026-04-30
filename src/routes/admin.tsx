@@ -742,9 +742,12 @@ function Admin() {
             </Table>
           </div>
         </TabsContent>
-      </Tabs>
 
-      <HomeContentTabBlock isAdmin={isAdmin} />
+        {/* ===== Home page content ===== */}
+        <TabsContent value="home" className="mt-4">
+          <HomeContentEditor />
+        </TabsContent>
+      </Tabs>
 
       {/* Member edit dialog */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
