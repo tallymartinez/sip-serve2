@@ -48,8 +48,10 @@ export type Database = {
           full_name: string
           id: string
           phone: string | null
+          signup_number: number | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
+          subscription_price_cents: number | null
           subscription_started_at: string | null
           subscription_status: string
           updated_at: string
@@ -60,8 +62,10 @@ export type Database = {
           full_name?: string
           id: string
           phone?: string | null
+          signup_number?: number | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          subscription_price_cents?: number | null
           subscription_started_at?: string | null
           subscription_status?: string
           updated_at?: string
@@ -72,8 +76,10 @@ export type Database = {
           full_name?: string
           id?: string
           phone?: string | null
+          signup_number?: number | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          subscription_price_cents?: number | null
           subscription_started_at?: string | null
           subscription_status?: string
           updated_at?: string
@@ -148,6 +154,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      current_tier_info: {
+        Args: never
+        Returns: {
+          next_signup_number: number
+          price_cents: number
+          spots_left_in_tier: number
+          total_members: number
+        }[]
+      }
       drinks_remaining_today: { Args: { _user_id: string }; Returns: number }
       has_role: {
         Args: {
@@ -156,6 +171,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      tier_price_for_signup: { Args: { _n: number }; Returns: number }
     }
     Enums: {
       app_role: "admin" | "employee" | "member"
