@@ -661,6 +661,11 @@ function Admin() {
           </div>
         </TabsContent>
 
+        {/* ===== Referrals ===== */}
+        <TabsContent value="referrals" className="mt-4">
+          {activeCompanyId && <ReferralCodesPanel companyId={activeCompanyId} members={members} />}
+        </TabsContent>
+
         {/* ===== Settings ===== */}
         <TabsContent value="settings" className="mt-4 space-y-4">
           {/* Company-wide settings */}
