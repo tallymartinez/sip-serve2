@@ -20,6 +20,15 @@ function Login() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) return toast.error(error.message);
+    // If a referral code was stashed at signup, try to apply it now
+    try {
+      const pending = localStorage.getItem("pending_referral_code");
+      if (pending) {
+        const { error: rErr } = await supabase.rpc("redeem_referral_code", { _code: pending });
+        localStorage.removeItem("pending_referral_code");
+        if (!rErr) toast.success("Referral code applied to your account.");
+      }
+    } catch { /* noop */ }
     toast.success("Welcome back");
     router.navigate({ to: "/dashboard" });
   }
