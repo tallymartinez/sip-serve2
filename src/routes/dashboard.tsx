@@ -176,16 +176,12 @@ function Dashboard() {
             <span className="font-display text-6xl text-gradient">${tierPrice}</span>
             <span className="text-muted-foreground">/ month</span>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Locked in for life. Future price changes won't affect you.
-          </p>
 
           <ul className="mt-8 grid gap-3 text-left max-w-md mx-auto">
             {[
               "Two crafted cocktails every day",
               "Personal QR member card",
               "Cancel anytime after 90 days",
-              "Founders pricing locked forever",
             ].map((b) => (
               <li key={b} className="flex items-start gap-3 text-sm">
                 <Check className="mt-0.5 h-4 w-4 text-primary-glow shrink-0" />
