@@ -1533,8 +1533,12 @@ function ReferralCodesPanel({ companyId, members }: { companyId: string; members
 function ReferralEditForm({ code, members, onSave, onCancel }: { code: ReferralCode; members: MemberRow[]; onSave: (patch: Partial<ReferralCode>) => void | Promise<void>; onCancel: () => void }) {
   const [draft, setDraft] = useState({
     code: code.code,
-    discount_type: code.discount_type,
-    discount_value: code.discount_type === "fixed" ? (code.discount_value / 100).toString() : code.discount_value.toString(),
+    discount_type: (code.discount_type ?? "none") as "none" | "fixed" | "percent",
+    discount_value: code.discount_value == null
+      ? ""
+      : code.discount_type === "fixed"
+        ? (code.discount_value / 100).toString()
+        : code.discount_value.toString(),
     assigned_to_user_id: code.assigned_to_user_id ?? "",
     assigned_to_name: code.assigned_to_name ?? "",
     notes: code.notes ?? "",
@@ -1544,13 +1548,18 @@ function ReferralEditForm({ code, members, onSave, onCancel }: { code: ReferralC
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const value = parseFloat(draft.discount_value);
-    if (Number.isNaN(value) || value <= 0) return toast.error("Discount value required");
-    if (draft.discount_type === "percent" && value > 100) return toast.error("Percent must be ≤ 100");
+    const tracking_only = draft.discount_type === "none";
+    let discount_value: number | null = null;
+    if (!tracking_only) {
+      const value = parseFloat(draft.discount_value);
+      if (Number.isNaN(value) || value <= 0) return toast.error("Discount value required");
+      if (draft.discount_type === "percent" && value > 100) return toast.error("Percent must be ≤ 100");
+      discount_value = draft.discount_type === "fixed" ? Math.round(value * 100) : Math.round(value);
+    }
     onSave({
       code: draft.code.trim(),
-      discount_type: draft.discount_type,
-      discount_value: draft.discount_type === "fixed" ? Math.round(value * 100) : Math.round(value),
+      discount_type: tracking_only ? null : (draft.discount_type as "fixed" | "percent"),
+      discount_value,
       assigned_to_user_id: draft.assigned_to_user_id || null,
       assigned_to_name: draft.assigned_to_name.trim() || null,
       notes: draft.notes.trim() || null,
@@ -1565,12 +1574,13 @@ function ReferralEditForm({ code, members, onSave, onCancel }: { code: ReferralC
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>Discount type</Label>
-          <select value={draft.discount_type} onChange={(e) => setDraft({ ...draft, discount_type: e.target.value as "fixed" | "percent" })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+          <select value={draft.discount_type} onChange={(e) => setDraft({ ...draft, discount_type: e.target.value as "none" | "fixed" | "percent" })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+            <option value="none">None (tracking only)</option>
             <option value="percent">Percent (%)</option>
             <option value="fixed">Fixed dollars ($)</option>
           </select>
         </div>
-        <div><Label>Value</Label><Input type="number" min="0.01" step="0.01" value={draft.discount_value} onChange={(e) => setDraft({ ...draft, discount_value: e.target.value })} required /></div>
+        <div><Label>Value</Label><Input type="number" min="0.01" step="0.01" value={draft.discount_value} onChange={(e) => setDraft({ ...draft, discount_value: e.target.value })} disabled={draft.discount_type === "none"} placeholder={draft.discount_type === "none" ? "—" : ""} /></div>
       </div>
       <div>
         <Label>Assigned member</Label>
