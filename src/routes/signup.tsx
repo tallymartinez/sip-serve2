@@ -30,11 +30,31 @@ const schema = z.object({
     .refine((v) => ageFromDob(v) >= 21, {
       message: "You must be at least 21 years old to join.",
     }),
+  referral_code: z.string().trim().max(40).optional(),
 });
+
+type ValidatedCode = { id: string; code: string; discount_type: "fixed" | "percent"; discount_value: number; assigned_to_name: string | null };
 
 function Signup() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [refInput, setRefInput] = useState("");
+  const [refValidating, setRefValidating] = useState(false);
+  const [refValid, setRefValid] = useState<ValidatedCode | null>(null);
+  const [refError, setRefError] = useState<string | null>(null);
+
+  async function checkCode() {
+    const code = refInput.trim();
+    setRefError(null); setRefValid(null);
+    if (!code) return;
+    setRefValidating(true);
+    const { data, error } = await supabase.rpc("validate_referral_code", { _code: code });
+    setRefValidating(false);
+    if (error) { setRefError("Could not check code"); return; }
+    const row = (data ?? [])[0] as ValidatedCode | undefined;
+    if (!row) { setRefError("Invalid, expired, or fully used code"); return; }
+    setRefValid(row);
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -54,13 +74,28 @@ function Signup() {
         },
       },
     });
-    setBusy(false);
     if (error) return toast.error(error.message);
+    // Try to redeem the referral code if user has an active session
+    const codeToRedeem = parsed.data.referral_code?.trim();
+    if (codeToRedeem && data.session) {
+      const { error: rErr } = await supabase.rpc("redeem_referral_code", { _code: codeToRedeem });
+      if (rErr) toast.warning(`Account created, but referral code couldn't be applied: ${rErr.message}`);
+      else toast.success("Referral code applied.");
+    }
+    setBusy(false);
     if (data.session) {
       toast.success("Welcome to Velvet Lounge.");
       router.navigate({ to: "/dashboard" });
     } else {
-      toast.success("Account created. Check your email to confirm, then sign in.");
+      toast.success(
+        codeToRedeem
+          ? "Account created. Check your email to confirm, then sign in — your referral code will be applied on first login."
+          : "Account created. Check your email to confirm, then sign in."
+      );
+      // Stash code so we can apply it on first login
+      if (codeToRedeem) {
+        try { localStorage.setItem("pending_referral_code", codeToRedeem); } catch { /* noop */ }
+      }
       router.navigate({ to: "/login" });
     }
   }
@@ -80,6 +115,31 @@ function Signup() {
             <p className="mt-1 text-xs text-muted-foreground">You must be 21 or older to become a member.</p>
           </div>
           <div><Label htmlFor="password">Password</Label><Input id="password" name="password" type="password" required minLength={8} autoComplete="new-password" /></div>
+          <div>
+            <Label htmlFor="referral_code">Referral code (optional)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="referral_code"
+                name="referral_code"
+                value={refInput}
+                onChange={(e) => { setRefInput(e.target.value); setRefValid(null); setRefError(null); }}
+                placeholder="ENTER CODE"
+                maxLength={40}
+                autoCapitalize="characters"
+                className="uppercase tracking-widest"
+              />
+              <Button type="button" variant="outline" onClick={checkCode} disabled={!refInput.trim() || refValidating}>
+                {refValidating ? "Checking…" : "Apply"}
+              </Button>
+            </div>
+            {refValid && (
+              <p className="mt-1 text-xs text-success">
+                ✓ {refValid.discount_type === "percent" ? `${refValid.discount_value}% off` : `$${(refValid.discount_value / 100).toFixed(2)} off`}
+                {refValid.assigned_to_name ? ` — referred by ${refValid.assigned_to_name}` : ""}
+              </p>
+            )}
+            {refError && <p className="mt-1 text-xs text-destructive">{refError}</p>}
+          </div>
           <Button disabled={busy} className="w-full bg-gradient-primary shadow-glow">{busy ? "Creating…" : "Create account"}</Button>
           <p className="text-center text-sm text-muted-foreground">
             Already a member? <Link to="/login" className="text-primary-glow hover:underline">Sign in</Link>
