@@ -106,27 +106,8 @@ function Dashboard() {
   }
 
   async function startCheckout() {
-    setCheckoutBusy(true);
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      if (!token) throw new Error("Not signed in");
-      const res = await createCheckout({ data: { accessToken: token } });
-      if (res?.url) {
-        const w = window.open(res.url, "_blank", "noopener,noreferrer");
-        if (!w) {
-          // Popup blocked — try to break out of the iframe
-          window.top!.location.href = res.url;
-        }
-      } else {
-        throw new Error("No checkout URL returned");
-      }
-    } catch (e) {
-      console.error(e);
-      toast.error(e instanceof Error ? e.message : "Could not start checkout");
-    } finally {
-      setCheckoutBusy(false);
-    }
+    // Placeholder while we work on the website design.
+    toast.info("Checkout coming soon — design in progress.");
   }
 
   if (loading || !profile) {
