@@ -106,8 +106,19 @@ function Dashboard() {
   }
 
   async function startCheckout() {
-    // Placeholder while we work on the website design.
-    toast.info("Checkout coming soon — design in progress.");
+    // Placeholder: skip real Stripe checkout and locally flip the user
+    // into the active member view so we can iterate on the design.
+    toast.success("Welcome to Velvet Club (preview)");
+    setProfile((p) =>
+      p
+        ? {
+            ...p,
+            subscription_status: "active",
+            subscription_started_at: p.subscription_started_at ?? new Date().toISOString(),
+            subscription_price_cents: p.subscription_price_cents ?? tier?.price_cents ?? 8000,
+          }
+        : p,
+    );
   }
 
   if (loading || !profile) {
