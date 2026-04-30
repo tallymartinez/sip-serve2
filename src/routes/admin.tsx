@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ShieldOff, ShieldCheck, Pencil, Plus } from "lucide-react";
+import { ShieldOff, ShieldCheck, Pencil, Plus, Copy, Check } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
@@ -48,6 +48,8 @@ function Admin() {
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [editing, setEditing] = useState<MemberRow | null>(null);
+  const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const since = useMemo(() => rangeStart(range), [range]);
 
@@ -117,16 +119,39 @@ function Admin() {
       full_name: String(form.get("emp_name") ?? "").trim().slice(0, 100),
       employee_code: String(form.get("emp_code") ?? "").trim().slice(0, 40),
     };
-    if (!payload.full_name || !payload.employee_code) return toast.error("Name and code required");
+    if (!payload.full_name || !payload.employee_code) return toast.error("Name and ID required");
     const { error } = await supabase.from("employees").insert(payload);
     if (error) return toast.error(error.message);
-    toast.success("Employee added"); loadAll();
+    toast.success("Server added"); loadAll();
   }
 
   async function toggleEmployee(e: Employee) {
     const { error } = await supabase.from("employees").update({ active: !e.active }).eq("id", e.id);
     if (error) return toast.error(error.message);
     loadAll();
+  }
+
+  async function saveEmployee(form: FormData) {
+    if (!editingEmp) return;
+    const patch = {
+      full_name: String(form.get("emp_name") ?? "").trim().slice(0, 100),
+      employee_code: String(form.get("emp_code") ?? "").trim().slice(0, 40),
+    };
+    if (!patch.full_name || !patch.employee_code) return toast.error("Name and ID required");
+    const { error } = await supabase.from("employees").update(patch).eq("id", editingEmp.id);
+    if (error) return toast.error(error.message);
+    toast.success("Server updated");
+    setEditingEmp(null); loadAll();
+  }
+
+  async function copyCode(code: string, id: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1500);
+    } catch {
+      toast.error("Could not copy");
+    }
   }
 
   return (
@@ -155,7 +180,7 @@ function Admin() {
         <TabsList>
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="logs">Redemption log</TabsTrigger>
-          <TabsTrigger value="employees">Employees</TabsTrigger>
+          <TabsTrigger value="employees">Servers</TabsTrigger>
         </TabsList>
 
         <TabsContent value="members" className="mt-4">
@@ -200,7 +225,7 @@ function Admin() {
               <TableHeader>
                 <TableRow>
                   <TableHead>When</TableHead><TableHead>Member</TableHead>
-                  <TableHead>Employee</TableHead><TableHead className="text-right">Drinks</TableHead>
+                  <TableHead>Server</TableHead><TableHead className="text-right">Drinks</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -223,25 +248,33 @@ function Admin() {
             onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); addEmployee(fd); e.currentTarget.reset(); }}
             className="rounded-xl border border-border/60 bg-card p-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]"
           >
-            <div><Label htmlFor="emp_name">Full name</Label><Input id="emp_name" name="emp_name" required /></div>
-            <div><Label htmlFor="emp_code">Employee code</Label><Input id="emp_code" name="emp_code" placeholder="EMP-1234" required /></div>
+            <div><Label htmlFor="emp_name">Server name</Label><Input id="emp_name" name="emp_name" required /></div>
+            <div><Label htmlFor="emp_code">Server ID</Label><Input id="emp_code" name="emp_code" placeholder="EMP-1234" required /></div>
             <Button type="submit" className="self-end bg-gradient-primary"><Plus className="h-4 w-4 mr-1" />Add</Button>
           </form>
           <div className="rounded-xl border border-border/60 bg-card overflow-x-auto">
             <Table>
-              <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Code</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Server ID</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
               <TableBody>
                 {employees.map((e) => (
                   <TableRow key={e.id}>
                     <TableCell>{e.full_name}</TableCell>
-                    <TableCell className="font-mono">{e.employee_code}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono">{e.employee_code}</span>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => copyCode(e.employee_code, e.id)} title="Copy server ID">
+                          {copiedId === e.id ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                        </Button>
+                      </div>
+                    </TableCell>
                     <TableCell><Badge className={e.active ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"}>{e.active ? "active" : "inactive"}</Badge></TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right space-x-2">
+                      <Button size="sm" variant="ghost" onClick={() => setEditingEmp(e)} title="Edit"><Pencil className="h-4 w-4" /></Button>
                       <Button size="sm" variant="outline" onClick={() => toggleEmployee(e)}>{e.active ? "Deactivate" : "Activate"}</Button>
                     </TableCell>
                   </TableRow>
                 ))}
-                {employees.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No employees yet</TableCell></TableRow>}
+                {employees.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No servers yet</TableCell></TableRow>}
               </TableBody>
             </Table>
           </div>
@@ -258,6 +291,22 @@ function Admin() {
               <div><Label htmlFor="phone">Phone</Label><Input id="phone" name="phone" defaultValue={editing.phone ?? ""} /></div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+                <Button type="submit" className="bg-gradient-primary">Save</Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingEmp} onOpenChange={(o) => !o && setEditingEmp(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit server</DialogTitle></DialogHeader>
+          {editingEmp && (
+            <form onSubmit={(e) => { e.preventDefault(); saveEmployee(new FormData(e.currentTarget)); }} className="space-y-3">
+              <div><Label htmlFor="emp_name_edit">Server name</Label><Input id="emp_name_edit" name="emp_name" defaultValue={editingEmp.full_name} required /></div>
+              <div><Label htmlFor="emp_code_edit">Server ID</Label><Input id="emp_code_edit" name="emp_code" defaultValue={editingEmp.employee_code} required /></div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditingEmp(null)}>Cancel</Button>
                 <Button type="submit" className="bg-gradient-primary">Save</Button>
               </DialogFooter>
             </form>
