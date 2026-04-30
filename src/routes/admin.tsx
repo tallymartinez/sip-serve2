@@ -1183,6 +1183,95 @@ function VenueDataPanel({ venues, employees }: { venues: Venue[]; employees: Emp
   );
 }
 
+function ImageUploader({ label, value, onChange }: { label: string; value: string; onChange: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+  async function handleFile(file: File) {
+    if (!file.type.startsWith("image/")) return toast.error("Please choose an image file");
+    if (file.size > 8 * 1024 * 1024) return toast.error("Image must be under 8MB");
+    setUploading(true);
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage.from("home-images").upload(path, file, { upsert: false, contentType: file.type });
+    if (error) { setUploading(false); return toast.error(error.message); }
+    const { data } = supabase.storage.from("home-images").getPublicUrl(path);
+    onChange(data.publicUrl);
+    setUploading(false);
+    toast.success("Image uploaded");
+  }
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <div className="flex flex-wrap items-center gap-3">
+        {value ? (
+          <img src={value} alt="" className="h-20 w-32 object-cover rounded-md border border-border/60" />
+        ) : (
+          <div className="h-20 w-32 rounded-md border border-dashed border-border/60 flex items-center justify-center text-xs text-muted-foreground">No image</div>
+        )}
+        <div className="flex flex-col gap-2">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.currentTarget.value = ""; }}
+            className="text-sm file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-secondary-foreground file:hover:bg-secondary/80"
+            disabled={uploading}
+          />
+          {value && <Button type="button" variant="outline" size="sm" onClick={() => onChange("")}>Remove</Button>}
+        </div>
+      </div>
+      {uploading && <p className="text-xs text-muted-foreground">Uploading…</p>}
+    </div>
+  );
+}
+
+function GalleryUploader({ value, onChange }: { value: string[]; onChange: (urls: string[]) => void }) {
+  const [uploading, setUploading] = useState(false);
+  async function handleFiles(files: FileList) {
+    setUploading(true);
+    const urls: string[] = [];
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith("image/")) { toast.error(`${file.name}: not an image`); continue; }
+      if (file.size > 8 * 1024 * 1024) { toast.error(`${file.name}: over 8MB`); continue; }
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `gallery-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await supabase.storage.from("home-images").upload(path, file, { upsert: false, contentType: file.type });
+      if (error) { toast.error(error.message); continue; }
+      const { data } = supabase.storage.from("home-images").getPublicUrl(path);
+      urls.push(data.publicUrl);
+    }
+    if (urls.length) onChange([...value, ...urls]);
+    setUploading(false);
+  }
+  return (
+    <div className="space-y-2">
+      <Label>Gallery (between welcome and cocktails)</Label>
+      <div className="flex flex-wrap gap-3">
+        {value.map((url, i) => (
+          <div key={i} className="relative group">
+            <img src={url} alt="" className="h-20 w-28 object-cover rounded-md border border-border/60" />
+            <button
+              type="button"
+              onClick={() => onChange(value.filter((_, idx) => idx !== i))}
+              className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center shadow"
+              aria-label="Remove image"
+            >×</button>
+          </div>
+        ))}
+        {value.length === 0 && <div className="h-20 w-28 rounded-md border border-dashed border-border/60 flex items-center justify-center text-xs text-muted-foreground">None</div>}
+      </div>
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={(e) => { if (e.target.files?.length) handleFiles(e.target.files); e.currentTarget.value = ""; }}
+        className="text-sm file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-secondary-foreground file:hover:bg-secondary/80"
+        disabled={uploading}
+      />
+      {uploading && <p className="text-xs text-muted-foreground">Uploading…</p>}
+      <p className="text-xs text-muted-foreground">Upload multiple at once. Drag to reorder coming later — for now, remove and re-upload to reorder.</p>
+    </div>
+  );
+}
+
 function CompanyEditor({ company, onSave }: { company: Company; onSave: (patch: Partial<Company>) => void | Promise<void> }) {
   const [draft, setDraft] = useState<Company>(company);
   useEffect(() => setDraft(company), [company.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1724,6 +1813,24 @@ function HomeContentEditor() {
               <Label>Body</Label>
               <Textarea rows={3} value={content.closingBody} onChange={(e) => updateField("closingBody", e.target.value)} />
             </div>
+            <ImageUploader
+              label="Closing image (above 'Pull up a stool')"
+              value={content.closingImageUrl ?? ""}
+              onChange={(url) => updateField("closingImageUrl", url)}
+            />
+          </div>
+
+          <div className="rounded-xl border border-border/60 bg-card p-5 space-y-4">
+            <h3 className="font-medium">Pictures</h3>
+            <ImageUploader
+              label="Hero background image"
+              value={content.heroImageUrl ?? ""}
+              onChange={(url) => updateField("heroImageUrl", url)}
+            />
+            <GalleryUploader
+              value={content.galleryImages ?? []}
+              onChange={(urls) => updateField("galleryImages", urls)}
+            />
           </div>
 
           <div className="flex justify-end">

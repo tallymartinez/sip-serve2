@@ -9,6 +9,9 @@ export interface HomeContent {
   supperClubSections: CocktailSection[];
   closingHeading: string;
   closingBody: string;
+  heroImageUrl?: string;
+  galleryImages?: string[];
+  closingImageUrl?: string;
 }
 
 export const defaultHomeContent: HomeContent = {
@@ -77,6 +80,9 @@ export const defaultHomeContent: HomeContent = {
   ],
   closingHeading: "Pull up a stool.",
   closingBody: "Two cocktails every day, on the house, for the price of a decent bottle of wine. Membership is intentionally small.",
+  heroImageUrl: "",
+  galleryImages: [],
+  closingImageUrl: "",
 };
 
 export function mergeHomeContent(partial: Partial<HomeContent> | null | undefined): HomeContent {

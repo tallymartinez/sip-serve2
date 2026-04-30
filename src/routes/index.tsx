@@ -73,7 +73,13 @@ function Home() {
     <main>
       {/* Hero */}
       <section className="bg-hero relative overflow-hidden">
-        <div className="container mx-auto px-4 py-24 md:py-32 text-center max-w-3xl">
+        {content.heroImageUrl && (
+          <div className="absolute inset-0">
+            <img src={content.heroImageUrl} alt="" className="w-full h-full object-cover opacity-30" />
+            <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/60 to-background" />
+          </div>
+        )}
+        <div className="container relative mx-auto px-4 py-24 md:py-32 text-center max-w-3xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/40 px-4 py-1.5 text-xs uppercase tracking-[0.2em] text-muted-foreground">
             <GlassWater className="h-3.5 w-3.5 text-primary-glow" /> O.V. Cocktail Club
           </div>
@@ -94,6 +100,19 @@ function Home() {
           </div>
         </div>
       </section>
+
+      {/* Gallery */}
+      {content.galleryImages && content.galleryImages.length > 0 && (
+        <section className="container mx-auto px-4 py-16">
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+            {content.galleryImages.filter(Boolean).map((src, i) => (
+              <div key={i} className="aspect-[4/3] overflow-hidden rounded-xl border border-border/60 shadow-card">
+                <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Cocktail menu */}
       <section className="bg-velvet/30 border-y border-border/40">
@@ -128,6 +147,11 @@ function Home() {
 
       {/* Closing CTA */}
       <section className="container mx-auto px-4 py-24 text-center max-w-2xl">
+        {content.closingImageUrl && (
+          <div className="mb-8 overflow-hidden rounded-2xl border border-border/60 shadow-velvet">
+            <img src={content.closingImageUrl} alt="" className="w-full h-64 md:h-80 object-cover" loading="lazy" />
+          </div>
+        )}
         <Sparkles className="mx-auto h-6 w-6 text-primary-glow" />
         <h2 className="mt-4 font-display text-4xl md:text-5xl">{content.closingHeading}</h2>
         <p className="mt-3 text-muted-foreground">{content.closingBody}</p>
