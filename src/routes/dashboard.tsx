@@ -169,7 +169,6 @@ function Dashboard() {
             {[
               "Two crafted cocktails every day",
               "Personal QR member card",
-              "Skip the tab — just walk in",
               "Cancel anytime after 90 days",
               "Founders pricing locked forever",
             ].map((b) => (
