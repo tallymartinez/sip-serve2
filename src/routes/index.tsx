@@ -111,10 +111,20 @@ const beers = [
   { name: "Athletic Lite (NA)", origin: "Stratford, CT", price: "8" },
 ];
 
+const supperClubBeers: { style: string; name: string; origin: string; abv: string; size: string; price: string }[] = [
+  { style: "golden ale", name: "er boquerón", origin: "valencia, spain", abv: "4.8%", size: "12oz", price: "10" },
+  { style: "amber ale", name: "ankrolab \"otto's barn\"", origin: "naples, florida", abv: "5.0%", size: "16oz", price: "12" },
+  { style: "pale ale", name: "kronenbourg \"belle epoque 1900\"", origin: "obernai, france", abv: "5.0%", size: "12oz", price: "10" },
+  { style: "ipa", name: "riptide \"porpoise party\"", origin: "region, country", abv: "6.5%", size: "16oz", price: "12" },
+  { style: "porter", name: "three daughters \"coconaut\"", origin: "st. petersberg, florida, usa", abv: "6.9%", size: "16oz", price: "12" },
+  { style: "non-alcoholic", name: "stella artois \"liberté\"", origin: "leuven, belgium", abv: "0.0%", size: "12oz", price: "8" },
+];
+
 function Home() {
   const [cocktailsOpen, setCocktailsOpen] = useState(false);
   const [supperOpen, setSupperOpen] = useState(false);
   const [beerOpen, setBeerOpen] = useState(false);
+  const [supperBeerOpen, setSupperBeerOpen] = useState(false);
   return (
     <main>
       {/* Hero */}
@@ -227,6 +237,15 @@ function Home() {
               Mercato Beer
               <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${beerOpen ? "rotate-180" : ""}`} />
             </Button>
+            <Button
+              onClick={() => setSupperBeerOpen((o) => !o)}
+              variant="outline"
+              aria-expanded={supperBeerOpen}
+              className="ml-3"
+            >
+              Supper Club Beer
+              <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${supperBeerOpen ? "rotate-180" : ""}`} />
+            </Button>
           </div>
         </div>
         {beerOpen && (
@@ -240,6 +259,23 @@ function Home() {
                 <span className="text-sm text-primary-glow font-medium">${b.price}</span>
               </div>
             ))}
+          </div>
+        )}
+        {supperBeerOpen && (
+          <div className="mt-10">
+            <h3 className="font-display text-2xl md:text-3xl text-primary-glow uppercase tracking-wider text-center">Ales, Lagers, & Other Brews</h3>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {supperClubBeers.map((b) => (
+                <div key={b.name} className="flex items-baseline justify-between gap-3 border-b border-border/40 py-3">
+                  <div>
+                    <p className="font-medium">{b.style} · {b.name}</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider">{b.origin}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{b.abv} · {b.size}</p>
+                  </div>
+                  <span className="text-sm text-primary-glow font-medium">${b.price}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </section>
