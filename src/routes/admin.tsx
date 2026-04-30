@@ -524,6 +524,11 @@ function Admin() {
           </div>
         </TabsContent>
 
+        {/* ===== Venue Data ===== */}
+        <TabsContent value="venue-data" className="mt-4">
+          <VenueDataPanel venues={companyVenues} employees={employees} />
+        </TabsContent>
+
         {/* ===== Employees ===== */}
         <TabsContent value="employees" className="mt-4 space-y-4">
           <form
