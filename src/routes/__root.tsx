@@ -2,7 +2,7 @@ import { Outlet, Link, createRootRoute, HeadContent, Scripts, useRouter } from "
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
-import { Wine, LogOut } from "lucide-react";
+import { GlassWater, LogOut } from "lucide-react";
 import appCss from "../styles.css?url";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 
@@ -28,7 +28,7 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Velvet Club — Members Only" },
+      { title: "O.V. Cocktail Club — Members Only" },
       { name: "description", content: "Exclusive cocktail membership. Two crafted drinks every day, on the house." },
     ],
     links: [
@@ -62,8 +62,8 @@ function Header() {
     <header className="border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link to="/" className="flex items-center gap-2">
-          <Wine className="h-6 w-6 text-primary-glow" />
-          <span className="font-display text-xl tracking-wide">Velvet Club</span>
+          <GlassWater className="h-6 w-6 text-primary-glow" />
+          <span className="font-display text-xl tracking-wide">O.V. Cocktail Club</span>
         </Link>
         <nav className="flex items-center gap-2">
           {user ? (

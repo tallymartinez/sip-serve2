@@ -2,7 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Wine } from "lucide-react";
+import { GlassWater } from "lucide-react";
 
 export const Route = createFileRoute("/staff")({
   beforeLoad: async () => {
@@ -38,7 +38,7 @@ function Staff() {
         </div>
         <div className="rounded-xl border border-border/60 bg-card p-6">
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Drinks served today</p>
-          <p className="mt-2 font-display text-3xl text-gradient flex items-center gap-2"><Wine className="h-7 w-7 text-primary-glow" />{today.drinks}</p>
+          <p className="mt-2 font-display text-3xl text-gradient flex items-center gap-2"><GlassWater className="h-7 w-7 text-primary-glow" />{today.drinks}</p>
         </div>
       </div>
       <p className="mt-8 rounded-lg border border-dashed border-border/60 bg-muted/30 p-4 text-sm text-muted-foreground">

@@ -8,7 +8,7 @@ import { StripeMembershipCheckout } from "@/components/StripeEmbeddedCheckout";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CalendarClock, Mail, User as UserIcon, Wine, ExternalLink, Check, Sparkles } from "lucide-react";
+import { CalendarClock, Mail, User as UserIcon, GlassWater, ExternalLink, Check, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/dashboard")({
@@ -157,7 +157,7 @@ function Dashboard() {
     return (
       <main className="container mx-auto max-w-3xl px-4 py-10 md:py-16">
         <div className="rounded-2xl border border-border/60 bg-velvet p-8 md:p-12 shadow-velvet text-center">
-          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Velvet Club Membership</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">O.V. Cocktail Club Membership</p>
           <h1 className="mt-3 font-display text-4xl md:text-5xl">Two cocktails a night. Every night.</h1>
           <p className="mt-3 text-muted-foreground max-w-xl mx-auto">
             Walk in, show your QR, drink.
@@ -210,7 +210,7 @@ function Dashboard() {
         <div className="rounded-2xl border border-border/60 bg-velvet p-8 shadow-velvet">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Velvet Club</p>
+              <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">O.V. Cocktail Club</p>
               <h1 className="mt-2 font-display text-3xl">{profile.full_name || "Member"}</h1>
             </div>
             <Badge className={active ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"}>
@@ -239,7 +239,7 @@ function Dashboard() {
                   <span className="text-gradient">{remaining}</span> <span className="text-muted-foreground text-base">/ 2 drinks</span>
                 </p>
               </div>
-              <Wine className="h-10 w-10 text-primary-glow" />
+              <GlassWater className="h-10 w-10 text-primary-glow" />
             </div>
             <p className="mt-2 text-xs text-muted-foreground">Resets at midnight, every night.</p>
           </div>
