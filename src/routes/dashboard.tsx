@@ -3,7 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { createCheckout, createPortalSession } from "@/server/stripe.functions";
+import { createBillingPortalSession } from "@/server/payments.functions";
+import { StripeMembershipCheckout } from "@/components/StripeEmbeddedCheckout";
+import { getStripeEnvironment } from "@/lib/stripe";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CalendarClock, Mail, User as UserIcon, Wine, ExternalLink, Check, Sparkles } from "lucide-react";
@@ -46,7 +48,7 @@ function Dashboard() {
   const [qrUrl, setQrUrl] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [tier, setTier] = useState<TierInfo | null>(null);
-  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
 
   const redeemUrl = useMemo(
     () => (typeof window !== "undefined" && user ? `${window.location.origin}/redeem/${user.id}` : ""),
@@ -94,10 +96,16 @@ function Dashboard() {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Not signed in");
-      const res = await createPortalSession({ data: { accessToken: token } });
-      if (res?.url) {
-        const w = window.open(res.url, "_blank", "noopener,noreferrer");
-        if (!w) window.top!.location.href = res.url;
+      const url = await createBillingPortalSession({
+        data: {
+          accessToken: token,
+          returnUrl: `${window.location.origin}/dashboard`,
+          environment: getStripeEnvironment(),
+        },
+      });
+      if (url) {
+        const w = window.open(url, "_blank", "noopener,noreferrer");
+        if (!w) window.top!.location.href = url;
       }
     } catch (e) {
       console.error(e);
@@ -105,20 +113,8 @@ function Dashboard() {
     }
   }
 
-  async function startCheckout() {
-    // Placeholder: skip real Stripe checkout and locally flip the user
-    // into the active member view so we can iterate on the design.
-    toast.success("Welcome to Velvet Club (preview)");
-    setProfile((p) =>
-      p
-        ? {
-            ...p,
-            subscription_status: "active",
-            subscription_started_at: p.subscription_started_at ?? new Date().toISOString(),
-            subscription_price_cents: p.subscription_price_cents ?? tier?.price_cents ?? 8000,
-          }
-        : p,
-    );
+  function startCheckout() {
+    setShowCheckout(true);
   }
 
   if (loading || !profile) {
@@ -141,6 +137,23 @@ function Dashboard() {
         : tier && tier.next_signup_number <= 200
           ? "Early tier"
           : "Standard tier";
+    if (showCheckout) {
+      return (
+        <main className="container mx-auto max-w-3xl px-4 py-10 md:py-16">
+          <div className="mb-4 flex items-center justify-between">
+            <h1 className="font-display text-2xl">Complete your membership</h1>
+            <Button variant="ghost" onClick={() => setShowCheckout(false)}>
+              Cancel
+            </Button>
+          </div>
+          <div className="rounded-2xl border border-border/60 bg-velvet p-4 md:p-6 shadow-velvet">
+            <StripeMembershipCheckout
+              returnUrl={`${window.location.origin}/dashboard?checkout=success`}
+            />
+          </div>
+        </main>
+      );
+    }
     return (
       <main className="container mx-auto max-w-3xl px-4 py-10 md:py-16">
         <div className="rounded-2xl border border-border/60 bg-velvet p-8 md:p-12 shadow-velvet text-center">
@@ -183,11 +196,10 @@ function Dashboard() {
 
           <Button
             onClick={startCheckout}
-            disabled={checkoutBusy}
             size="lg"
             className="mt-8 bg-gradient-primary shadow-glow px-10"
           >
-            {checkoutBusy ? "Opening checkout…" : `Become a member · $${tierPrice}/mo`}
+            Become a member · ${tierPrice}/mo
           </Button>
 
         </div>
