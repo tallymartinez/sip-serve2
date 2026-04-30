@@ -17,6 +17,8 @@ export interface HomeContent {
   supperClubSections: CocktailSection[];
   closingHeading: string;
   closingBody: string;
+  closingLinkLabel?: string;
+  closingLinkUrl?: string;
   heroImageUrl?: string;
   galleryImages?: string[];
   closingImageUrl?: string;
