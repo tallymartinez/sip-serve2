@@ -50,9 +50,9 @@ function Redeem() {
       setUnlocked(true);
       return;
     }
-    // Check admin override code
-    const { data: ok } = await supabase.rpc("verify_override_code", { _code: code });
-    if (ok) {
+    // Check admin personal override code (logs the use)
+    const { data: adminId } = await supabase.rpc("verify_admin_code", { _code: code, _member_id: memberId });
+    if (adminId) {
       setUnlocked(true);
       toast.success("Override code accepted");
       return;
