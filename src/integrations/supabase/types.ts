@@ -32,32 +32,86 @@ export type Database = {
         }
         Relationships: []
       }
+      companies: {
+        Row: {
+          active: boolean
+          created_at: string
+          daily_drink_limit: number
+          id: string
+          name: string
+          paused_message: string | null
+          redemptions_paused: boolean
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          daily_drink_limit?: number
+          id?: string
+          name: string
+          paused_message?: string | null
+          redemptions_paused?: boolean
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          daily_drink_limit?: number
+          id?: string
+          name?: string
+          paused_message?: string | null
+          redemptions_paused?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       employees: {
         Row: {
           active: boolean
+          company_id: string | null
           created_at: string
           employee_code: string
           full_name: string
           id: string
           user_id: string | null
+          venue_id: string | null
         }
         Insert: {
           active?: boolean
+          company_id?: string | null
           created_at?: string
           employee_code: string
           full_name: string
           id?: string
           user_id?: string | null
+          venue_id?: string | null
         }
         Update: {
           active?: boolean
+          company_id?: string | null
           created_at?: string
           employee_code?: string
           full_name?: string
           id?: string
           user_id?: string | null
+          venue_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "employees_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       override_uses: {
         Row: {
@@ -82,6 +136,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          company_id: string | null
           created_at: string
           email: string
           full_name: string
@@ -96,6 +151,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          company_id?: string | null
           created_at?: string
           email: string
           full_name?: string
@@ -110,6 +166,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          company_id?: string | null
           created_at?: string
           email?: string
           full_name?: string
@@ -123,7 +180,15 @@ export type Database = {
           subscription_status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       redemptions: {
         Row: {
@@ -133,6 +198,7 @@ export type Database = {
           redeemed_at: string
           redeemed_date: string
           user_id: string
+          venue_id: string | null
         }
         Insert: {
           drinks_redeemed: number
@@ -141,6 +207,7 @@ export type Database = {
           redeemed_at?: string
           redeemed_date?: string
           user_id: string
+          venue_id?: string | null
         }
         Update: {
           drinks_redeemed?: number
@@ -149,6 +216,7 @@ export type Database = {
           redeemed_at?: string
           redeemed_date?: string
           user_id?: string
+          venue_id?: string | null
         }
         Relationships: [
           {
@@ -163,6 +231,13 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "redemptions_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
             referencedColumns: ["id"]
           },
         ]
@@ -217,66 +292,82 @@ export type Database = {
       }
       user_roles: {
         Row: {
+          company_id: string | null
           created_at: string
           id: string
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Insert: {
+          company_id?: string | null
           created_at?: string
           id?: string
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Update: {
+          company_id?: string | null
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
-      venue_settings: {
+      venues: {
         Row: {
-          daily_drink_limit: number
-          id: boolean
-          paused_message: string | null
-          redemptions_paused: boolean
+          active: boolean
+          address: string | null
+          company_id: string
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
           updated_at: string
-          updated_by: string | null
-          venue_address: string | null
-          venue_email: string | null
-          venue_name: string
-          venue_phone: string | null
           venue_pin: string
         }
         Insert: {
-          daily_drink_limit?: number
-          id?: boolean
-          paused_message?: string | null
-          redemptions_paused?: boolean
+          active?: boolean
+          address?: string | null
+          company_id: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
           updated_at?: string
-          updated_by?: string | null
-          venue_address?: string | null
-          venue_email?: string | null
-          venue_name?: string
-          venue_phone?: string | null
           venue_pin?: string
         }
         Update: {
-          daily_drink_limit?: number
-          id?: boolean
-          paused_message?: string | null
-          redemptions_paused?: boolean
+          active?: boolean
+          address?: string | null
+          company_id?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
           updated_at?: string
-          updated_by?: string | null
-          venue_address?: string | null
-          venue_email?: string | null
-          venue_name?: string
-          venue_phone?: string | null
           venue_pin?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "venues_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -305,14 +396,24 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_role_in_company: {
+        Args: {
+          _company_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       tier_price_for_signup: { Args: { _n: number }; Returns: number }
+      user_company_id: { Args: { _user_id: string }; Returns: string }
       verify_admin_code: {
         Args: { _code: string; _member_id: string }
         Returns: string
       }
     }
     Enums: {
-      app_role: "admin" | "employee" | "member"
+      app_role: "admin" | "employee" | "member" | "super_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -440,7 +541,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "employee", "member"],
+      app_role: ["admin", "employee", "member", "super_admin"],
     },
   },
 } as const
