@@ -28,6 +28,7 @@ function Redeem() {
   const [info, setInfo] = useState<MemberInfo | null>(null);
   const [accessCode, setAccessCode] = useState("");
   const [unlocked, setUnlocked] = useState(false);
+  const [empCode, setEmpCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -55,13 +56,23 @@ function Redeem() {
     if (!info) return;
     if (info.subscription_status !== "active") return toast.error("Subscription is not active");
     if (info.remaining < qty) return toast.error(`Only ${info.remaining} drink(s) left today`);
+    if (!empCode.trim()) return toast.error("Enter your server ID");
 
     setBusy(true);
+    // Look up server (employee) by their unique code
+    const { data: emp, error: empErr } = await supabase
+      .from("employees").select("id, active, full_name").eq("employee_code", empCode.trim()).maybeSingle();
+    if (empErr || !emp || !emp.active) {
+      setBusy(false);
+      return toast.error("Invalid or inactive server ID");
+    }
+
     const { error: insErr } = await supabase
-      .from("redemptions").insert({ user_id: memberId, drinks_redeemed: qty });
+      .from("redemptions").insert({ user_id: memberId, employee_id: emp.id, drinks_redeemed: qty });
     setBusy(false);
     if (insErr) return toast.error(insErr.message);
-    toast.success(`Redeemed ${qty} drink${qty > 1 ? "s" : ""}`);
+    toast.success(`Redeemed ${qty} drink${qty > 1 ? "s" : ""} · ${emp.full_name}`);
+    setEmpCode("");
     load();
   }
 
@@ -121,7 +132,19 @@ function Redeem() {
             </div>
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className="mt-6">
+            <Label htmlFor="empcode">Your server ID</Label>
+            <Input
+              id="empcode"
+              value={empCode}
+              onChange={(e) => setEmpCode(e.target.value)}
+              placeholder="e.g. EMP-1234"
+              autoComplete="off"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Required for every redemption — tracks who poured the drink.</p>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
             <Button onClick={() => redeem(1)} disabled={busy || info.remaining < 1} className="bg-gradient-primary shadow-glow h-14 text-base">
               <CheckCircle2 className="mr-2 h-5 w-5" /> Redeem 1
             </Button>
