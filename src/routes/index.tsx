@@ -31,8 +31,8 @@ function Index() {
     : 0;
 
   const tiers = [
-    { name: "Founders", price: 80, range: "Members 1–100", note: "Locked for life" },
-    { name: "Early", price: 90, range: "Members 101–200", note: "Locked for life" },
+    { name: "Founders", price: 80, range: "Members 1–100", note: "Founding rate" },
+    { name: "Early", price: 90, range: "Members 101–200", note: "Early rate" },
     { name: "Standard", price: 100, range: "Members 201+", note: "Current rate" },
   ];
 
