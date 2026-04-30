@@ -89,7 +89,7 @@ export type Database = {
       redemptions: {
         Row: {
           drinks_redeemed: number
-          employee_id: string
+          employee_id: string | null
           id: string
           redeemed_at: string
           redeemed_date: string
@@ -97,7 +97,7 @@ export type Database = {
         }
         Insert: {
           drinks_redeemed: number
-          employee_id: string
+          employee_id?: string | null
           id?: string
           redeemed_at?: string
           redeemed_date?: string
@@ -105,7 +105,7 @@ export type Database = {
         }
         Update: {
           drinks_redeemed?: number
-          employee_id?: string
+          employee_id?: string | null
           id?: string
           redeemed_at?: string
           redeemed_date?: string

@@ -36,7 +36,7 @@ interface MemberRow {
 }
 interface LogRow {
   id: string; redeemed_at: string; drinks_redeemed: number;
-  user_id: string; employee_id: string;
+  user_id: string; employee_id: string | null;
   member_name: string; member_email: string; employee_name: string;
 }
 interface Employee { id: string; full_name: string; employee_code: string; active: boolean; }
@@ -76,7 +76,7 @@ function Admin() {
         id: r.id, redeemed_at: r.redeemed_at, drinks_redeemed: r.drinks_redeemed,
         user_id: r.user_id, employee_id: r.employee_id,
         member_name: m?.full_name ?? "", member_email: m?.email ?? "",
-        employee_name: empMap.get(r.employee_id) ?? "—",
+        employee_name: r.employee_id ? (empMap.get(r.employee_id) ?? "—") : "—",
       };
     }));
     setEmployees(emps.data ?? []);
