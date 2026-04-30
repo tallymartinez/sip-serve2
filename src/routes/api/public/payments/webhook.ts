@@ -17,7 +17,7 @@ function tierLabelForKey(key: string | undefined | null): string {
 
 async function activateMember(userId: string, priceId: string | null, signupNumber: number | null) {
   const cents = priceCentsForLookupKey(priceId);
-  await getSupabase()
+  await supabaseAdmin
     .from("profiles")
     .update({
       subscription_status: "active",
@@ -30,13 +30,13 @@ async function activateMember(userId: string, priceId: string | null, signupNumb
   // Send welcome email if email infrastructure is set up.
   // (Wrapped in try/catch so missing email setup doesn't block activation.)
   try {
-    const { data: profile } = await getSupabase()
+    const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("email, full_name")
       .eq("id", userId)
       .maybeSingle();
     if (profile?.email) {
-      await getSupabase().rpc("enqueue_email" as any, {
+      await supabaseAdmin.rpc("enqueue_email" as any, {
         queue_name: "transactional_emails",
         message: {
           template_name: "welcome-velvet",
@@ -69,7 +69,7 @@ async function handleSubscriptionCreated(subscription: any, env: StripeEnv) {
   const signupNumberRaw = subscription.metadata?.signupNumber;
   const signupNumber = signupNumberRaw ? Number(signupNumberRaw) : null;
 
-  await getSupabase().from("subscriptions").upsert(
+  await supabaseAdmin.from("subscriptions").upsert(
     {
       user_id: userId,
       stripe_subscription_id: subscription.id,
@@ -97,7 +97,7 @@ async function handleSubscriptionUpdated(subscription: any, env: StripeEnv) {
   const periodStart = item?.current_period_start ?? subscription.current_period_start;
   const periodEnd = item?.current_period_end ?? subscription.current_period_end;
 
-  await getSupabase()
+  await supabaseAdmin
     .from("subscriptions")
     .update({
       status: subscription.status,
@@ -123,7 +123,7 @@ async function handleSubscriptionUpdated(subscription: any, env: StripeEnv) {
           : subscription.status === "canceled"
             ? "cancelled"
             : subscription.status;
-    await getSupabase()
+    await supabaseAdmin
       .from("profiles")
       .update({ subscription_status: profileStatus })
       .eq("id", userId);
@@ -131,7 +131,7 @@ async function handleSubscriptionUpdated(subscription: any, env: StripeEnv) {
 }
 
 async function handleSubscriptionDeleted(subscription: any, env: StripeEnv) {
-  await getSupabase()
+  await supabaseAdmin
     .from("subscriptions")
     .update({ status: "canceled", updated_at: new Date().toISOString() })
     .eq("stripe_subscription_id", subscription.id)
@@ -139,7 +139,7 @@ async function handleSubscriptionDeleted(subscription: any, env: StripeEnv) {
 
   const userId = subscription.metadata?.userId;
   if (userId) {
-    await getSupabase()
+    await supabaseAdmin
       .from("profiles")
       .update({ subscription_status: "cancelled" })
       .eq("id", userId);
