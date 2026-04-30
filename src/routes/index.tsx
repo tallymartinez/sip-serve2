@@ -143,7 +143,6 @@ function Home() {
             <h2 className="mt-3 font-display text-4xl md:text-5xl">Cocktails</h2>
             <p className="mt-3 text-muted-foreground">$18 unless noted otherwise. Crafted nightly at Old Vines at Mercato.</p>
           </div>
-          <div className="mt-8 flex justify-center">
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button
               size="lg"
