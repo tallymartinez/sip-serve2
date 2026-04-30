@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { GlassWater, Sparkles, Star, Wine, Beer } from "lucide-react";
+import { GlassWater, Sparkles, Star, Wine, Beer, ChevronDown } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
