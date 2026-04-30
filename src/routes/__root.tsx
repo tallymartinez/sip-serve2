@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { Wine, LogOut } from "lucide-react";
 import appCss from "../styles.css?url";
+import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 
 function NotFoundComponent() {
   return (
@@ -90,6 +91,7 @@ function RootComponent() {
   return (
     <AuthProvider>
       <div className="min-h-screen bg-background">
+        <PaymentTestModeBanner />
         <Header />
         <Outlet />
         <Toaster />
