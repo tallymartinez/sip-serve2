@@ -197,13 +197,30 @@ function Home() {
         <p className="mt-3 text-muted-foreground">{content.closingBody}</p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link to="/dashboard"><Button size="lg" className="bg-gradient-primary shadow-glow">Open my card</Button></Link>
-          {content.closingLinkUrl && content.closingLinkLabel && (
-            <a href={content.closingLinkUrl} target="_blank" rel="noopener noreferrer">
-              <Button size="lg" variant="outline">{content.closingLinkLabel}</Button>
-            </a>
-          )}
         </div>
       </section>
+
+      {/* External link footer band */}
+      {content.closingLinkUrl && content.closingLinkLabel && (
+        <section className="border-t border-border/60 bg-gradient-to-b from-velvet/40 to-background">
+          <div className="container mx-auto px-4 py-14 md:py-20 text-center">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Interested in more?</p>
+            <a
+              href={content.closingLinkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-5 inline-block w-full sm:w-auto"
+            >
+              <Button
+                size="lg"
+                className="w-full sm:w-auto bg-gradient-primary shadow-glow text-lg md:text-xl px-10 md:px-14 py-7 md:py-8 h-auto font-display tracking-wide"
+              >
+                {content.closingLinkLabel}
+              </Button>
+            </a>
+          </div>
+        </section>
+      )}
     </main>
   );
 }
