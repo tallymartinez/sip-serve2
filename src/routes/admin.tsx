@@ -1958,6 +1958,9 @@ function HomeContentEditor() {
               label="Closing image (above 'Pull up a stool')"
               value={content.closingImageUrl ?? ""}
               onChange={(url) => updateField("closingImageUrl", url)}
+              display={content.closingDisplay}
+              onDisplayChange={(next) => updateField("closingDisplay", next)}
+              defaultHeight={320}
             />
           </div>
 
@@ -1967,10 +1970,15 @@ function HomeContentEditor() {
               label="Hero background image"
               value={content.heroImageUrl ?? ""}
               onChange={(url) => updateField("heroImageUrl", url)}
+              display={content.heroDisplay}
+              onDisplayChange={(next) => updateField("heroDisplay", next)}
+              defaultHeight={520}
             />
             <GalleryUploader
               value={content.galleryImages ?? []}
               onChange={(urls) => updateField("galleryImages", urls)}
+              displays={content.galleryDisplays}
+              onDisplaysChange={(next) => updateField("galleryDisplays", next)}
             />
           </div>
 
