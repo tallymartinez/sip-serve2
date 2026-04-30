@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { ShieldOff, ShieldCheck, Pencil, Plus, Copy, Check, Trash2, KeyRound, UserPlus, X, Store, Pause, Play, Eye, EyeOff, Building2, Download, BarChart3, RefreshCw, Ticket, Power } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { defaultHomeContent, mergeHomeContent, type HomeContent } from "@/lib/homeContent";
+import { defaultHomeContent, mergeHomeContent, type HomeContent, type ImageDisplay } from "@/lib/homeContent";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
