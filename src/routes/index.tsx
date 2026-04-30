@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { GlassWater, Sparkles, Star, Wine, Beer } from "lucide-react";
+import { GlassWater, Sparkles, Star, Wine, Beer, ChevronDown } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -83,6 +84,7 @@ const beers = [
 ];
 
 function Home() {
+  const [cocktailsOpen, setCocktailsOpen] = useState(false);
   return (
     <main>
       {/* Hero */}
@@ -112,6 +114,18 @@ function Home() {
             <h2 className="mt-3 font-display text-4xl md:text-5xl">Cocktails</h2>
             <p className="mt-3 text-muted-foreground">$18 unless noted otherwise. Crafted nightly at Old Vines at Mercato.</p>
           </div>
+          <div className="mt-8 flex justify-center">
+            <Button
+              size="lg"
+              onClick={() => setCocktailsOpen((o) => !o)}
+              className="bg-gradient-primary shadow-glow"
+              aria-expanded={cocktailsOpen}
+            >
+              Mercato Cocktails
+              <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${cocktailsOpen ? "rotate-180" : ""}`} />
+            </Button>
+          </div>
+          {cocktailsOpen && (
           <div className="mt-14 space-y-14 max-w-5xl mx-auto">
             {cocktailSections.map((section) => (
               <div key={section.heading}>
@@ -133,6 +147,7 @@ function Home() {
               </div>
             ))}
           </div>
+          )}
         </div>
       </section>
 
