@@ -94,9 +94,7 @@ function Dashboard() {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Not signed in");
-      const res = await createPortalSession({
-        headers: { authorization: `Bearer ${token}` },
-      } as never);
+      const res = await createPortalSession({ data: { accessToken: token } });
       if (res?.url) window.location.href = res.url;
     } catch (e) {
       console.error(e);
@@ -110,9 +108,7 @@ function Dashboard() {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Not signed in");
-      const res = await createCheckout({
-        headers: { authorization: `Bearer ${token}` },
-      } as never);
+      const res = await createCheckout({ data: { accessToken: token } });
       if (res?.url) window.location.href = res.url;
       else throw new Error("No checkout URL returned");
     } catch (e) {
