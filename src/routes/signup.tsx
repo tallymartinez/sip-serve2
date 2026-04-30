@@ -26,7 +26,7 @@ function Signup() {
     const parsed = schema.safeParse(Object.fromEntries(fd));
     if (!parsed.success) return toast.error(parsed.error.issues[0].message);
     setBusy(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: parsed.data.email,
       password: parsed.data.password,
       options: {
@@ -36,8 +36,13 @@ function Signup() {
     });
     setBusy(false);
     if (error) return toast.error(error.message);
-    toast.success("Welcome! Check your email to confirm your account.");
-    router.navigate({ to: "/dashboard" });
+    if (data.session) {
+      toast.success("Welcome to Velvet Lounge.");
+      router.navigate({ to: "/dashboard" });
+    } else {
+      toast.success("Account created. Check your email to confirm, then sign in.");
+      router.navigate({ to: "/login" });
+    }
   }
 
   return (
