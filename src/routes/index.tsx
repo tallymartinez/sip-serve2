@@ -84,6 +84,7 @@ const beers = [
 ];
 
 function Home() {
+  const [cocktailsOpen, setCocktailsOpen] = useState(false);
   return (
     <main>
       {/* Hero */}
@@ -106,14 +107,6 @@ function Home() {
       </section>
 
       {/* Cocktail menu */}
-      <CocktailMenuSection />
-    </div>
-  );
-}
-
-function CocktailMenuSection() {
-  const [open, setOpen] = useState(false);
-  return (
       <section className="bg-velvet/30 border-y border-border/40">
         <div className="container mx-auto px-4 py-20">
           <div className="text-center max-w-2xl mx-auto">
@@ -124,15 +117,15 @@ function CocktailMenuSection() {
           <div className="mt-8 flex justify-center">
             <Button
               size="lg"
-              onClick={() => setOpen((o) => !o)}
+              onClick={() => setCocktailsOpen((o) => !o)}
               className="bg-gradient-primary shadow-glow"
-              aria-expanded={open}
+              aria-expanded={cocktailsOpen}
             >
               Mercato Cocktails
-              <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+              <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${cocktailsOpen ? "rotate-180" : ""}`} />
             </Button>
           </div>
-          {open && (
+          {cocktailsOpen && (
           <div className="mt-14 space-y-14 max-w-5xl mx-auto">
             {cocktailSections.map((section) => (
               <div key={section.heading}>
@@ -157,8 +150,6 @@ function CocktailMenuSection() {
           )}
         </div>
       </section>
-  );
-}
 
       {/* Beer */}
       <section className="container mx-auto px-4 py-20 max-w-4xl">
