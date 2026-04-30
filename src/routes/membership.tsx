@@ -84,7 +84,7 @@ function Index() {
       <section className="container mx-auto px-4 pb-24">
         <div className="text-center max-w-2xl mx-auto">
           <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Membership pricing</p>
-          <h2 className="mt-3 font-display text-4xl md:text-5xl">The earlier you join, the less you pay — forever.</h2>
+          <h2 className="mt-3 font-display text-4xl md:text-5xl">The earlier you join, the less you pay.</h2>
           <p className="mt-3 text-muted-foreground">
             Your price locks in the day you sign up. It never goes up, even when the next tier opens.
           </p>
