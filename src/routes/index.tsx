@@ -90,33 +90,23 @@ function Index() {
           </p>
         </div>
 
-        <div className="mt-12 grid gap-6 md:grid-cols-3 max-w-5xl mx-auto">
-          {tiers.map((t, i) => {
-            const isCurrent = i === currentTierIndex;
-            const isPast = i < currentTierIndex;
+        <div className="mt-12 max-w-md mx-auto">
+          {(() => {
+            const t = tiers[currentTierIndex];
             return (
-              <div
-                key={t.name}
-                className={`rounded-2xl border p-8 shadow-card relative ${
-                  isCurrent
-                    ? "border-primary/60 bg-velvet shadow-velvet"
-                    : "border-border/60 bg-card"
-                } ${isPast ? "opacity-50" : ""}`}
-              >
-                {isCurrent && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-primary px-3 py-1 text-xs uppercase tracking-widest text-primary-foreground shadow-glow">
-                    Available now
-                  </div>
-                )}
-                <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">{t.name}</p>
-                <div className="mt-3 flex items-baseline gap-1">
-                  <span className={`font-display text-5xl ${isCurrent ? "text-gradient" : ""}`}>${t.price}</span>
+              <div className="rounded-2xl border border-primary/60 bg-velvet p-8 shadow-velvet relative text-center">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-primary px-3 py-1 text-xs uppercase tracking-widest text-primary-foreground shadow-glow">
+                  Available now
+                </div>
+                <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">{t.name} tier</p>
+                <div className="mt-3 flex items-baseline justify-center gap-1">
+                  <span className="font-display text-6xl text-gradient">${t.price}</span>
                   <span className="text-muted-foreground">/ mo</span>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">{t.range}</p>
                 <p className="text-xs text-primary-glow mt-1">{t.note}</p>
 
-                <ul className="mt-6 space-y-2 text-sm">
+                <ul className="mt-6 space-y-2 text-sm text-left max-w-xs mx-auto">
                   {["Two cocktails every night", "Personal QR member card", "Cancel anytime after 90 days"].map((b) => (
                     <li key={b} className="flex items-start gap-2">
                       <Check className="mt-0.5 h-4 w-4 text-primary-glow shrink-0" />
@@ -125,17 +115,12 @@ function Index() {
                   ))}
                 </ul>
 
-                {isCurrent && (
-                  <Link to="/signup" className="mt-6 block">
-                    <Button className="w-full bg-gradient-primary shadow-glow">Claim ${t.price}/mo</Button>
-                  </Link>
-                )}
-                {isPast && (
-                  <p className="mt-6 text-center text-xs text-muted-foreground">Sold out</p>
-                )}
+                <Link to="/signup" className="mt-6 block">
+                  <Button className="w-full bg-gradient-primary shadow-glow">Claim ${t.price}/mo</Button>
+                </Link>
               </div>
             );
-          })}
+          })()}
         </div>
       </section>
     </main>
