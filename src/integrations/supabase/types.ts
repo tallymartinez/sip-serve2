@@ -14,24 +14,21 @@ export type Database = {
   }
   public: {
     Tables: {
-      admin_settings: {
+      admin_codes: {
         Row: {
-          id: boolean
-          override_code: string
+          code: string
           updated_at: string
-          updated_by: string | null
+          user_id: string
         }
         Insert: {
-          id?: boolean
-          override_code?: string
+          code: string
           updated_at?: string
-          updated_by?: string | null
+          user_id: string
         }
         Update: {
-          id?: boolean
-          override_code?: string
+          code?: string
           updated_at?: string
-          updated_by?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -59,6 +56,27 @@ export type Database = {
           full_name?: string
           id?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      override_uses: {
+        Row: {
+          admin_user_id: string
+          id: string
+          member_id: string | null
+          used_at: string
+        }
+        Insert: {
+          admin_user_id: string
+          id?: string
+          member_id?: string | null
+          used_at?: string
+        }
+        Update: {
+          admin_user_id?: string
+          id?: string
+          member_id?: string | null
+          used_at?: string
         }
         Relationships: []
       }
@@ -246,7 +264,10 @@ export type Database = {
         Returns: boolean
       }
       tier_price_for_signup: { Args: { _n: number }; Returns: number }
-      verify_override_code: { Args: { _code: string }; Returns: boolean }
+      verify_admin_code: {
+        Args: { _code: string; _member_id: string }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "admin" | "employee" | "member"
