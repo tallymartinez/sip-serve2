@@ -48,6 +48,7 @@ interface LogRow {
 }
 interface Employee { id: string; full_name: string; employee_code: string; active: boolean; drinks: number; drinks_all: number; }
 interface AdminUser { user_id: string; email: string; full_name: string; }
+interface OverrideUse { id: string; used_at: string; admin_user_id: string; admin_email: string; member_id: string | null; member_name: string; }
 
 function Admin() {
   const { isAdmin, loading } = useAuth();
@@ -59,19 +60,22 @@ function Admin() {
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [admins, setAdmins] = useState<AdminUser[]>([]);
-  const [overrideCode, setOverrideCode] = useState("");
-  const [overrideEdit, setOverrideEdit] = useState("");
+  const [myCode, setMyCode] = useState("");
+  const [myCodeEdit, setMyCodeEdit] = useState("");
+  const [overrideUses, setOverrideUses] = useState<OverrideUse[]>([]);
+  const { user } = useAuth();
 
   const since = useMemo(() => rangeStart(range), [range]);
 
   async function loadAll() {
-    const [profiles, redemps, allRedemps, emps, adminRoles, settings] = await Promise.all([
+    const [profiles, redemps, allRedemps, emps, adminRoles, myCodeRow, uses] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("redemptions").select("*").gte("redeemed_date", since).order("redeemed_at", { ascending: false }),
       supabase.from("redemptions").select("employee_id,drinks_redeemed"),
       supabase.from("employees").select("*").order("created_at", { ascending: false }),
       supabase.from("user_roles").select("user_id").eq("role", "admin"),
-      supabase.from("admin_settings").select("override_code").eq("id", true).maybeSingle(),
+      user ? supabase.from("admin_codes").select("code").eq("user_id", user.id).maybeSingle() : Promise.resolve({ data: null }),
+      supabase.from("override_uses").select("*").order("used_at", { ascending: false }).limit(50),
     ]);
 
     const empMap = new Map((emps.data ?? []).map((e) => [e.id, e.full_name]));
@@ -122,10 +126,22 @@ function Admin() {
       return { user_id: uid, email: p?.email ?? "(unknown)", full_name: p?.full_name ?? "" };
     }));
 
-    if (settings.data?.override_code) {
-      setOverrideCode(settings.data.override_code);
-      setOverrideEdit(settings.data.override_code);
-    }
+    const codeVal = (myCodeRow.data as { code?: string } | null)?.code ?? "";
+    setMyCode(codeVal);
+    setMyCodeEdit(codeVal);
+
+    setOverrideUses((uses.data ?? []).map((u) => {
+      const adminProfile = profMap.get(u.admin_user_id);
+      const memberProfile = u.member_id ? profMap.get(u.member_id) : null;
+      return {
+        id: u.id,
+        used_at: u.used_at,
+        admin_user_id: u.admin_user_id,
+        admin_email: adminProfile?.email ?? "(unknown)",
+        member_id: u.member_id,
+        member_name: memberProfile?.full_name || memberProfile?.email || "—",
+      };
+    }));
   }
 
   useEffect(() => { if (isAdmin) loadAll(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [isAdmin, since]);
@@ -239,13 +255,19 @@ function Admin() {
     loadAll();
   }
 
-  async function saveOverrideCode() {
-    const code = overrideEdit.trim();
+  async function saveMyCode() {
+    if (!user) return;
+    const code = myCodeEdit.trim();
     if (!/^\d{4,8}$/.test(code)) return toast.error("Code must be 4–8 digits");
-    const { error } = await supabase.from("admin_settings").update({ override_code: code, updated_at: new Date().toISOString() }).eq("id", true);
-    if (error) return toast.error(error.message);
-    toast.success("Override code updated");
-    setOverrideCode(code);
+    const { error } = await supabase
+      .from("admin_codes")
+      .upsert({ user_id: user.id, code, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (error) {
+      if (error.code === "23505") return toast.error("Another admin is already using that code");
+      return toast.error(error.message);
+    }
+    toast.success("Your override code updated");
+    setMyCode(code);
   }
 
   return (
@@ -421,28 +443,45 @@ function Admin() {
           <div className="rounded-xl border border-border/60 bg-card p-6 max-w-xl">
             <div className="flex items-center gap-2">
               <KeyRound className="h-5 w-5 text-primary-glow" />
-              <h2 className="font-display text-xl">Override code</h2>
+              <h2 className="font-display text-xl">My override code</h2>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              A master code that can unlock the staff redemption terminal in place of the standard staff PIN — for troubleshooting or when staff forget the code. 4–8 digits.
+              Your personal code unlocks the staff redemption terminal in place of the shared staff PIN. Every use is tracked below. 4–8 digits, unique per admin.
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
               <div>
-                <Label htmlFor="override">Current code</Label>
+                <Label htmlFor="override">Your code</Label>
                 <Input
                   id="override"
                   inputMode="numeric"
                   pattern="[0-9]*"
                   maxLength={8}
-                  value={overrideEdit}
-                  onChange={(e) => setOverrideEdit(e.target.value.replace(/\D/g, ""))}
+                  value={myCodeEdit}
+                  onChange={(e) => setMyCodeEdit(e.target.value.replace(/\D/g, ""))}
+                  placeholder="Not set"
                   className="font-mono text-lg tracking-[0.3em]"
                 />
               </div>
-              <Button onClick={saveOverrideCode} disabled={overrideEdit === overrideCode} className="self-end bg-gradient-primary">
+              <Button onClick={saveMyCode} disabled={myCodeEdit === myCode || !myCodeEdit} className="self-end bg-gradient-primary">
                 Save
               </Button>
             </div>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-card overflow-x-auto">
+            <div className="px-4 pt-4 pb-2"><h3 className="font-display text-lg">Override usage (last 50)</h3></div>
+            <Table>
+              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>Admin</TableHead><TableHead>Member</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {overrideUses.map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell className="text-muted-foreground">{new Date(u.used_at).toLocaleString()}</TableCell>
+                    <TableCell>{u.admin_email}</TableCell>
+                    <TableCell>{u.member_name}</TableCell>
+                  </TableRow>
+                ))}
+                {overrideUses.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-8">No override uses yet</TableCell></TableRow>}
+              </TableBody>
+            </Table>
           </div>
         </TabsContent>
       </Tabs>
