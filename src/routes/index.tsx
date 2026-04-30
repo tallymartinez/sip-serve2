@@ -73,6 +73,34 @@ const cocktailSections: { heading: string; subtitle?: string; items: { name: str
   },
 ];
 
+const supperClubSections: { heading: string; subtitle?: string; items: { name: string; notes: string; price?: string }[] }[] = [
+  {
+    heading: "Supper Club Signatures",
+    subtitle: "$18",
+    items: [
+      { name: "Red Light District", notes: "nolet's silver · rhubarb bitters · lemon · yuzu · pink peppercorn syrup" },
+      { name: "All That & A Bag of Chips", notes: "volcan reposado · fassionola · mint · orgeat · coconut · soda" },
+      { name: "Puebla Hothouse", notes: "del maguey \"vida\" · cilantro · lime · agave · dried chili" },
+      { name: "Garden Gnome", notes: "ketel one vodka · tarragon · sencha · jasmine pearls · wildflower honey · candied lemon" },
+      { name: "19th Hole", notes: "johnnie walker \"black cask\" · honey simple · citrus · soda" },
+      { name: "The Parisian", notes: "brenne french single malt · lillet blanc · elderflower liqueur · orange bitters" },
+      { name: "No Sleep 'Til Brooklyn", notes: "ardbeg \"wee beastie\" · torched grapefruit · lavender · walnut" },
+      { name: "Pull the Rip Cord", notes: "woodinville rye · bib & tucker 6 year bourbon · house vermouth · cherry bark-vanilla bitters" },
+    ],
+  },
+  {
+    heading: "Low- & No-ABV",
+    subtitle: "$15",
+    items: [
+      { name: "Gather Beverage Company", notes: "consciously-crafted, chef-inspired, whole ingredients only. herbal, functional elixirs. zero alcohol. based in fort myers. — tart heart · words of wisdom" },
+      { name: "Hoodwinked (Zero-Proof)", notes: "aplos \"ease\" n/a spirit · fassionola · mint · orgeat · coconut · soda" },
+      { name: "How Low Can You Go? (Zero-Proof)", notes: "gather bev. coffee-caramel · cold brew extract · ritual n/a rum" },
+      { name: "Count Your Blessings (Low-ABV)", notes: "palo cortado · cherry bark-vanilla bitters · demerara · cola" },
+      { name: "Careful Whisper (Low-ABV)", notes: "cardamaro · dry vermouth · cocchi \"storico\" · orange bitters · angostura" },
+    ],
+  },
+];
+
 const beers = [
   { name: "High 5 IPA", origin: "Fort Myers, FL", price: "9" },
   { name: "Peroni Nastro Azzurro Pilsner", origin: "Vigevano, IT", price: "8" },
@@ -85,6 +113,7 @@ const beers = [
 
 function Home() {
   const [cocktailsOpen, setCocktailsOpen] = useState(false);
+  const [supperOpen, setSupperOpen] = useState(false);
   return (
     <main>
       {/* Hero */}
@@ -115,6 +144,7 @@ function Home() {
             <p className="mt-3 text-muted-foreground">$18 unless noted otherwise. Crafted nightly at Old Vines at Mercato.</p>
           </div>
           <div className="mt-8 flex justify-center">
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button
               size="lg"
               onClick={() => setCocktailsOpen((o) => !o)}
@@ -124,10 +154,42 @@ function Home() {
               Mercato Cocktails
               <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${cocktailsOpen ? "rotate-180" : ""}`} />
             </Button>
+            <Button
+              size="lg"
+              onClick={() => setSupperOpen((o) => !o)}
+              variant="outline"
+              aria-expanded={supperOpen}
+            >
+              Supper Club Cocktails
+              <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${supperOpen ? "rotate-180" : ""}`} />
+            </Button>
           </div>
           {cocktailsOpen && (
           <div className="mt-14 space-y-14 max-w-5xl mx-auto">
             {cocktailSections.map((section) => (
+              <div key={section.heading}>
+                <h3 className="font-display text-2xl md:text-3xl text-primary-glow uppercase tracking-wider text-center">{section.heading}</h3>
+                {section.subtitle && (
+                  <p className="mt-2 text-center text-xs uppercase tracking-[0.2em] text-muted-foreground">{section.subtitle}</p>
+                )}
+                <div className="mt-6 grid gap-5 md:grid-cols-2">
+                  {section.items.map((c) => (
+                    <div key={c.name} className="rounded-xl border border-border/60 bg-card/80 p-5 shadow-card">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <h4 className="font-display text-xl">{c.name}</h4>
+                        {c.price && <span className="text-sm text-primary-glow font-medium shrink-0">${c.price}</span>}
+                      </div>
+                      {c.notes && <p className="mt-2 text-sm text-muted-foreground">{c.notes}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          )}
+          {supperOpen && (
+          <div className="mt-14 space-y-14 max-w-5xl mx-auto">
+            {supperClubSections.map((section) => (
               <div key={section.heading}>
                 <h3 className="font-display text-2xl md:text-3xl text-primary-glow uppercase tracking-wider text-center">{section.heading}</h3>
                 {section.subtitle && (
