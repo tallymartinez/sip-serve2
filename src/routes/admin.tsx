@@ -10,7 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ShieldOff, ShieldCheck, Pencil, Plus, Copy, Check, Trash2, KeyRound, UserPlus, X } from "lucide-react";
+import { ShieldOff, ShieldCheck, Pencil, Plus, Copy, Check, Trash2, KeyRound, UserPlus, X, Store, Pause, Play, Eye, EyeOff } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
@@ -49,6 +51,16 @@ interface LogRow {
 interface Employee { id: string; full_name: string; employee_code: string; active: boolean; drinks: number; drinks_all: number; }
 interface AdminUser { user_id: string; email: string; full_name: string; }
 interface OverrideUse { id: string; used_at: string; admin_user_id: string; admin_email: string; member_id: string | null; member_name: string; }
+interface VenueSettings {
+  venue_pin: string;
+  daily_drink_limit: number;
+  venue_name: string;
+  venue_address: string | null;
+  venue_phone: string | null;
+  venue_email: string | null;
+  redemptions_paused: boolean;
+  paused_message: string | null;
+}
 
 function Admin() {
   const { isAdmin, loading } = useAuth();
@@ -64,11 +76,14 @@ function Admin() {
   const [myCodeEdit, setMyCodeEdit] = useState("");
   const [overrideUses, setOverrideUses] = useState<OverrideUse[]>([]);
   const { user } = useAuth();
+  const [venue, setVenue] = useState<VenueSettings | null>(null);
+  const [venueDraft, setVenueDraft] = useState<VenueSettings | null>(null);
+  const [showPin, setShowPin] = useState(false);
 
   const since = useMemo(() => rangeStart(range), [range]);
 
   async function loadAll() {
-    const [profiles, redemps, allRedemps, emps, adminRoles, myCodeRow, uses] = await Promise.all([
+    const [profiles, redemps, allRedemps, emps, adminRoles, myCodeRow, uses, venueRow] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("redemptions").select("*").gte("redeemed_date", since).order("redeemed_at", { ascending: false }),
       supabase.from("redemptions").select("employee_id,drinks_redeemed"),
@@ -76,6 +91,7 @@ function Admin() {
       supabase.from("user_roles").select("user_id").eq("role", "admin"),
       user ? supabase.from("admin_codes").select("code").eq("user_id", user.id).maybeSingle() : Promise.resolve({ data: null }),
       supabase.from("override_uses").select("*").order("used_at", { ascending: false }).limit(50),
+      supabase.from("venue_settings").select("*").eq("id", true).maybeSingle(),
     ]);
 
     const empMap = new Map((emps.data ?? []).map((e) => [e.id, e.full_name]));
@@ -142,6 +158,21 @@ function Admin() {
         member_name: memberProfile?.full_name || memberProfile?.email || "—",
       };
     }));
+
+    if (venueRow.data) {
+      const v: VenueSettings = {
+        venue_pin: venueRow.data.venue_pin,
+        daily_drink_limit: venueRow.data.daily_drink_limit,
+        venue_name: venueRow.data.venue_name,
+        venue_address: venueRow.data.venue_address,
+        venue_phone: venueRow.data.venue_phone,
+        venue_email: venueRow.data.venue_email,
+        redemptions_paused: venueRow.data.redemptions_paused,
+        paused_message: venueRow.data.paused_message,
+      };
+      setVenue(v);
+      setVenueDraft(v);
+    }
   }
 
   useEffect(() => { if (isAdmin) loadAll(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [isAdmin, since]);
@@ -269,6 +300,34 @@ function Admin() {
     toast.success("Your override code updated");
     setMyCode(code);
   }
+
+  async function saveVenue() {
+    if (!venueDraft) return;
+    if (!/^\d{4,8}$/.test(venueDraft.venue_pin)) return toast.error("Venue PIN must be 4–8 digits");
+    if (venueDraft.daily_drink_limit < 1 || venueDraft.daily_drink_limit > 20) return toast.error("Daily drink limit must be 1–20");
+    if (!venueDraft.venue_name.trim()) return toast.error("Venue name required");
+    const { error } = await supabase.from("venue_settings").update({
+      venue_pin: venueDraft.venue_pin.trim(),
+      daily_drink_limit: venueDraft.daily_drink_limit,
+      venue_name: venueDraft.venue_name.trim(),
+      venue_address: venueDraft.venue_address?.trim() || null,
+      venue_phone: venueDraft.venue_phone?.trim() || null,
+      venue_email: venueDraft.venue_email?.trim() || null,
+      redemptions_paused: venueDraft.redemptions_paused,
+      paused_message: venueDraft.paused_message?.trim() || null,
+      updated_at: new Date().toISOString(),
+      updated_by: user?.id ?? null,
+    }).eq("id", true);
+    if (error) return toast.error(error.message);
+    toast.success("Venue settings saved");
+    setVenue(venueDraft);
+  }
+
+  function updateDraft<K extends keyof VenueSettings>(key: K, val: VenueSettings[K]) {
+    setVenueDraft((d) => (d ? { ...d, [key]: val } : d));
+  }
+
+  const venueDirty = venue && venueDraft && JSON.stringify(venue) !== JSON.stringify(venueDraft);
 
   return (
     <main className="container mx-auto px-4 py-10">
@@ -440,6 +499,97 @@ function Admin() {
         </TabsContent>
 
         <TabsContent value="settings" className="mt-4 space-y-4">
+          {/* Venue settings */}
+          <div className="rounded-xl border border-border/60 bg-card p-6">
+            <div className="flex items-center gap-2">
+              <Store className="h-5 w-5 text-primary-glow" />
+              <h2 className="font-display text-xl">Venue settings</h2>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">Configure the staff PIN, drink allowance, venue info, and redemption status.</p>
+            {venueDraft && (
+              <div className="mt-5 grid gap-5 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="venue_pin">Venue PIN <span className="text-muted-foreground font-normal">— shared staff code</span></Label>
+                  <div className="relative">
+                    <Input
+                      id="venue_pin"
+                      type={showPin ? "text" : "password"}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={8}
+                      value={venueDraft.venue_pin}
+                      onChange={(e) => updateDraft("venue_pin", e.target.value.replace(/\D/g, ""))}
+                      className="font-mono text-lg tracking-[0.3em] pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPin((s) => !s)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+                      aria-label={showPin ? "Hide PIN" : "Show PIN"}
+                    >
+                      {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">Staff type this on the redemption screen. 4–8 digits.</p>
+                </div>
+                <div>
+                  <Label htmlFor="daily_limit">Daily drink limit per member</Label>
+                  <Input
+                    id="daily_limit"
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={venueDraft.daily_drink_limit}
+                    onChange={(e) => updateDraft("daily_drink_limit", Math.max(1, Math.min(20, parseInt(e.target.value || "1", 10))))}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Label htmlFor="venue_name">Venue name</Label>
+                  <Input id="venue_name" value={venueDraft.venue_name} onChange={(e) => updateDraft("venue_name", e.target.value)} />
+                </div>
+                <div className="md:col-span-2">
+                  <Label htmlFor="venue_address">Address</Label>
+                  <Input id="venue_address" value={venueDraft.venue_address ?? ""} onChange={(e) => updateDraft("venue_address", e.target.value)} placeholder="Street, City, State" />
+                </div>
+                <div>
+                  <Label htmlFor="venue_phone">Phone</Label>
+                  <Input id="venue_phone" value={venueDraft.venue_phone ?? ""} onChange={(e) => updateDraft("venue_phone", e.target.value)} placeholder="(555) 123-4567" />
+                </div>
+                <div>
+                  <Label htmlFor="venue_email">Email</Label>
+                  <Input id="venue_email" type="email" value={venueDraft.venue_email ?? ""} onChange={(e) => updateDraft("venue_email", e.target.value)} placeholder="hello@venue.com" />
+                </div>
+                <div className="md:col-span-2 rounded-lg border border-border/60 bg-background/40 p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      {venueDraft.redemptions_paused ? <Pause className="h-5 w-5 text-destructive" /> : <Play className="h-5 w-5 text-success" />}
+                      <div>
+                        <p className="font-medium">Pause redemptions</p>
+                        <p className="text-xs text-muted-foreground">Temporarily block staff from redeeming drinks (e.g. private event).</p>
+                      </div>
+                    </div>
+                    <Switch checked={venueDraft.redemptions_paused} onCheckedChange={(v) => updateDraft("redemptions_paused", v)} />
+                  </div>
+                  {venueDraft.redemptions_paused && (
+                    <div className="mt-3">
+                      <Label htmlFor="paused_message">Message shown to staff</Label>
+                      <Textarea
+                        id="paused_message"
+                        rows={2}
+                        value={venueDraft.paused_message ?? ""}
+                        onChange={(e) => updateDraft("paused_message", e.target.value)}
+                        placeholder="Closed for a private event tonight."
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="md:col-span-2 flex justify-end">
+                  <Button onClick={saveVenue} disabled={!venueDirty} className="bg-gradient-primary">Save venue settings</Button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="rounded-xl border border-border/60 bg-card p-6 max-w-xl">
             <div className="flex items-center gap-2">
               <KeyRound className="h-5 w-5 text-primary-glow" />
