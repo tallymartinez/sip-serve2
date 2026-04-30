@@ -232,7 +232,7 @@ function Home() {
       <section className="container mx-auto px-4 py-24 text-center max-w-2xl">
         <Sparkles className="mx-auto h-6 w-6 text-primary-glow" />
         <h2 className="mt-4 font-display text-4xl md:text-5xl">Pull up a stool.</h2>
-        <p className="mt-3 text-muted-foreground">Two cocktails every night, on the house, for the price of a decent bottle of wine. Membership is intentionally small.</p>
+        <p className="mt-3 text-muted-foreground">Two cocktails every day, on the house, for the price of a decent bottle of wine. Membership is intentionally small.</p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link to="/membership"><Button size="lg" className="bg-gradient-primary shadow-glow">See membership</Button></Link>
         </div>
