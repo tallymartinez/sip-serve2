@@ -106,6 +106,14 @@ function Home() {
       </section>
 
       {/* Cocktail menu */}
+      <CocktailMenuSection />
+    </div>
+  );
+}
+
+function CocktailMenuSection() {
+  const [open, setOpen] = useState(false);
+  return (
       <section className="bg-velvet/30 border-y border-border/40">
         <div className="container mx-auto px-4 py-20">
           <div className="text-center max-w-2xl mx-auto">
@@ -113,6 +121,18 @@ function Home() {
             <h2 className="mt-3 font-display text-4xl md:text-5xl">Cocktails</h2>
             <p className="mt-3 text-muted-foreground">$18 unless noted otherwise. Crafted nightly at Old Vines at Mercato.</p>
           </div>
+          <div className="mt-8 flex justify-center">
+            <Button
+              size="lg"
+              onClick={() => setOpen((o) => !o)}
+              className="bg-gradient-primary shadow-glow"
+              aria-expanded={open}
+            >
+              Mercato Cocktails
+              <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+            </Button>
+          </div>
+          {open && (
           <div className="mt-14 space-y-14 max-w-5xl mx-auto">
             {cocktailSections.map((section) => (
               <div key={section.heading}>
@@ -134,8 +154,11 @@ function Home() {
               </div>
             ))}
           </div>
+          )}
         </div>
       </section>
+  );
+}
 
       {/* Beer */}
       <section className="container mx-auto px-4 py-20 max-w-4xl">
