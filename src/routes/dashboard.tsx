@@ -188,9 +188,6 @@ function Dashboard() {
             {checkoutBusy ? "Opening checkout…" : `Become a member · $${tierPrice}/mo`}
           </Button>
 
-          <p className="mt-4 text-xs text-muted-foreground">
-            Tier pricing: 1–100: $80 · 101–200: $90 · 201+: $100 per month.
-          </p>
         </div>
       </main>
     );
