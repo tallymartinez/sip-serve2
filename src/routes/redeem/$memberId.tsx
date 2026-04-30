@@ -1,21 +1,17 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Wine, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Wine, CheckCircle2, Lock } from "lucide-react";
 import { toast } from "sonner";
 
+// Shared staff access code — same for every server.
+const STAFF_ACCESS_CODE = "2580";
+
 export const Route = createFileRoute("/redeem/$memberId")({
-  beforeLoad: async ({ params }) => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) {
-      throw redirect({ to: "/login", search: { redirect: `/redeem/${params.memberId}` } as never });
-    }
-  },
   component: Redeem,
 });
 
@@ -29,9 +25,9 @@ interface MemberInfo {
 
 function Redeem() {
   const { memberId } = Route.useParams();
-  const { isEmployee, loading: authLoading } = useAuth();
   const [info, setInfo] = useState<MemberInfo | null>(null);
-  const [empCode, setEmpCode] = useState("");
+  const [accessCode, setAccessCode] = useState("");
+  const [unlocked, setUnlocked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -44,36 +40,57 @@ function Redeem() {
     setInfo({ ...(profile as Omit<MemberInfo, "remaining">), remaining: typeof r === "number" ? r : 0 });
   }
 
-  useEffect(() => { if (isEmployee) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [isEmployee, memberId]);
+  useEffect(() => { if (unlocked) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [unlocked, memberId]);
+
+  function tryUnlock(e: React.FormEvent) {
+    e.preventDefault();
+    if (accessCode.trim() === STAFF_ACCESS_CODE) {
+      setUnlocked(true);
+    } else {
+      toast.error("Incorrect access code");
+    }
+  }
 
   async function redeem(qty: 1 | 2) {
     if (!info) return;
     if (info.subscription_status !== "active") return toast.error("Subscription is not active");
     if (info.remaining < qty) return toast.error(`Only ${info.remaining} drink(s) left today`);
-    if (!empCode.trim()) return toast.error("Enter your employee code");
 
     setBusy(true);
-    // Look up employee by code
-    const { data: emp, error: empErr } = await supabase
-      .from("employees").select("id, active").eq("employee_code", empCode.trim()).maybeSingle();
-    if (empErr || !emp || !emp.active) { setBusy(false); return toast.error("Invalid or inactive employee code"); }
-
     const { error: insErr } = await supabase
-      .from("redemptions").insert({ user_id: memberId, employee_id: emp.id, drinks_redeemed: qty });
+      .from("redemptions").insert({ user_id: memberId, drinks_redeemed: qty });
     setBusy(false);
     if (insErr) return toast.error(insErr.message);
     toast.success(`Redeemed ${qty} drink${qty > 1 ? "s" : ""}`);
-    setEmpCode("");
     load();
   }
 
-  if (authLoading) return <main className="container mx-auto px-4 py-16">Loading…</main>;
-  if (!isEmployee) {
+  if (!unlocked) {
     return (
-      <main className="container mx-auto max-w-md px-4 py-16 text-center">
-        <AlertTriangle className="mx-auto h-10 w-10 text-destructive" />
-        <h1 className="mt-4 font-display text-2xl">Staff only</h1>
-        <p className="mt-2 text-sm text-muted-foreground">This page is for venue staff. Contact your manager for access.</p>
+      <main className="container mx-auto max-w-sm px-4 py-16">
+        <form onSubmit={tryUnlock} className="rounded-2xl border border-border/60 bg-velvet p-8 shadow-velvet text-center">
+          <Lock className="mx-auto h-8 w-8 text-primary-glow" />
+          <h1 className="mt-4 font-display text-2xl">Staff access</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Enter the 4-digit code to redeem.</p>
+          <div className="mt-6 text-left">
+            <Label htmlFor="access">Access code</Label>
+            <Input
+              id="access"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={4}
+              value={accessCode}
+              onChange={(e) => setAccessCode(e.target.value.replace(/\D/g, ""))}
+              placeholder="••••"
+              autoFocus
+              autoComplete="off"
+              className="text-center tracking-[0.5em] text-2xl font-display"
+            />
+          </div>
+          <Button type="submit" className="mt-6 w-full bg-gradient-primary shadow-glow">
+            Unlock
+          </Button>
+        </form>
       </main>
     );
   }
@@ -81,7 +98,7 @@ function Redeem() {
   return (
     <main className="container mx-auto max-w-md px-4 py-10">
       <h1 className="font-display text-3xl">Redeem drinks</h1>
-      <p className="text-sm text-muted-foreground">Confirm the member, enter your code, redeem.</p>
+      <p className="text-sm text-muted-foreground">Confirm the member and tap redeem.</p>
 
       {err && <div className="mt-6 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">{err}</div>}
 
@@ -104,12 +121,7 @@ function Redeem() {
             </div>
           </div>
 
-          <div className="mt-6">
-            <Label htmlFor="empcode">Employee code</Label>
-            <Input id="empcode" value={empCode} onChange={(e) => setEmpCode(e.target.value)} placeholder="e.g. EMP-1234" autoComplete="off" />
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="mt-6 grid grid-cols-2 gap-3">
             <Button onClick={() => redeem(1)} disabled={busy || info.remaining < 1} className="bg-gradient-primary shadow-glow h-14 text-base">
               <CheckCircle2 className="mr-2 h-5 w-5" /> Redeem 1
             </Button>
