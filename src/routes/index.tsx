@@ -72,10 +72,21 @@ function Home() {
   return (
     <main>
       {/* Hero */}
-      <section className="bg-hero relative overflow-hidden">
+      <section
+        className="bg-hero relative overflow-hidden"
+        style={content.heroDisplay?.height ? { minHeight: `${content.heroDisplay.height}px` } : undefined}
+      >
         {content.heroImageUrl && (
           <div className="absolute inset-0">
-            <img src={content.heroImageUrl} alt="" className="w-full h-full object-cover opacity-30" />
+            <img
+              src={content.heroImageUrl}
+              alt=""
+              className="w-full h-full opacity-30"
+              style={{
+                objectFit: content.heroDisplay?.fit ?? "cover",
+                objectPosition: `${content.heroDisplay?.posX ?? 50}% ${content.heroDisplay?.posY ?? 50}%`,
+              }}
+            />
             <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/60 to-background" />
           </div>
         )}
@@ -105,11 +116,28 @@ function Home() {
       {content.galleryImages && content.galleryImages.length > 0 && (
         <section className="container mx-auto px-4 py-16">
           <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-            {content.galleryImages.filter(Boolean).map((src, i) => (
-              <div key={i} className="aspect-[4/3] overflow-hidden rounded-xl border border-border/60 shadow-card">
-                <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />
-              </div>
-            ))}
+            {content.galleryImages.filter(Boolean).map((src, i) => {
+              const d = content.galleryDisplays?.[i];
+              const tileHeight = d?.height ?? 0;
+              return (
+                <div
+                  key={i}
+                  className={`overflow-hidden rounded-xl border border-border/60 shadow-card bg-card ${tileHeight ? "" : "aspect-[4/3]"}`}
+                  style={tileHeight ? { height: `${tileHeight}px` } : undefined}
+                >
+                  <img
+                    src={src}
+                    alt=""
+                    className="w-full h-full"
+                    style={{
+                      objectFit: d?.fit ?? "cover",
+                      objectPosition: `${d?.posX ?? 50}% ${d?.posY ?? 50}%`,
+                    }}
+                    loading="lazy"
+                  />
+                </div>
+              );
+            })}
           </div>
         </section>
       )}
@@ -148,8 +176,20 @@ function Home() {
       {/* Closing CTA */}
       <section className="container mx-auto px-4 py-24 text-center max-w-2xl">
         {content.closingImageUrl && (
-          <div className="mb-8 overflow-hidden rounded-2xl border border-border/60 shadow-velvet">
-            <img src={content.closingImageUrl} alt="" className="w-full h-64 md:h-80 object-cover" loading="lazy" />
+          <div
+            className="mb-8 overflow-hidden rounded-2xl border border-border/60 shadow-velvet bg-card"
+            style={{ height: `${content.closingDisplay?.height ?? 320}px` }}
+          >
+            <img
+              src={content.closingImageUrl}
+              alt=""
+              className="w-full h-full"
+              style={{
+                objectFit: content.closingDisplay?.fit ?? "cover",
+                objectPosition: `${content.closingDisplay?.posX ?? 50}% ${content.closingDisplay?.posY ?? 50}%`,
+              }}
+              loading="lazy"
+            />
           </div>
         )}
         <Sparkles className="mx-auto h-6 w-6 text-primary-glow" />

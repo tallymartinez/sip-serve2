@@ -1,5 +1,13 @@
 export interface CocktailItem { name: string; notes: string; price?: string }
 export interface CocktailSection { heading: string; subtitle?: string; items: CocktailItem[] }
+export type ImageFit = "cover" | "contain";
+export interface ImageDisplay {
+  url: string;
+  fit?: ImageFit;          // cover (fill, may crop) or contain (fit whole image)
+  posX?: number;           // 0-100, horizontal focal point
+  posY?: number;           // 0-100, vertical focal point
+  height?: number;         // px, applies to gallery tile / closing image
+}
 export interface HomeContent {
   welcomeHeading: string;
   welcomeParagraphs: string[];
@@ -12,6 +20,10 @@ export interface HomeContent {
   heroImageUrl?: string;
   galleryImages?: string[];
   closingImageUrl?: string;
+  // New: per-image display settings (optional, fall back to sensible defaults)
+  heroDisplay?: Omit<ImageDisplay, "url">;
+  galleryDisplays?: Array<Omit<ImageDisplay, "url">>;
+  closingDisplay?: Omit<ImageDisplay, "url">;
 }
 
 export const defaultHomeContent: HomeContent = {
