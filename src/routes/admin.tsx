@@ -47,6 +47,7 @@ interface LogRow {
   member_name: string; member_email: string; employee_name: string;
 }
 interface Employee { id: string; full_name: string; employee_code: string; active: boolean; drinks: number; }
+type EmployeeRow = Employee & { drinks_all: number };
 
 function Admin() {
   const { isAdmin, loading } = useAuth();
