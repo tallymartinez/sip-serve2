@@ -1,7 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { GlassWater, Sparkles, Star, Wine, Beer, ChevronDown } from "lucide-react";
+import { GlassWater, Sparkles, Star, ChevronDown } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -121,10 +122,27 @@ const supperClubBeers: { style: string; name: string; origin: string; abv: strin
 ];
 
 function Home() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  useEffect(() => {
+    if (!loading && !user) {
+      router.navigate({ to: "/membership" });
+    }
+  }, [loading, user, router]);
+
   const [cocktailsOpen, setCocktailsOpen] = useState(false);
   const [supperOpen, setSupperOpen] = useState(false);
   const [beerOpen, setBeerOpen] = useState(false);
   const [supperBeerOpen, setSupperBeerOpen] = useState(false);
+
+  if (loading || !user) {
+    return (
+      <main className="container mx-auto px-4 py-24 text-center text-muted-foreground">
+        Loading…
+      </main>
+    );
+  }
+
   return (
     <main>
       {/* Hero */}
