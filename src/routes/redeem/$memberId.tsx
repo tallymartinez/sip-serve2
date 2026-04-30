@@ -43,13 +43,21 @@ function Redeem() {
 
   useEffect(() => { if (unlocked) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [unlocked, memberId]);
 
-  function tryUnlock(e: React.FormEvent) {
+  async function tryUnlock(e: React.FormEvent) {
     e.preventDefault();
-    if (accessCode.trim() === STAFF_ACCESS_CODE) {
+    const code = accessCode.trim();
+    if (code === STAFF_ACCESS_CODE) {
       setUnlocked(true);
-    } else {
-      toast.error("Incorrect access code");
+      return;
     }
+    // Check admin override code
+    const { data: ok } = await supabase.rpc("verify_override_code", { _code: code });
+    if (ok) {
+      setUnlocked(true);
+      toast.success("Override code accepted");
+      return;
+    }
+    toast.error("Incorrect access code");
   }
 
   async function redeem(qty: 1 | 2) {

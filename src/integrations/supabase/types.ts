@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_settings: {
+        Row: {
+          id: boolean
+          override_code: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: boolean
+          override_code?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: boolean
+          override_code?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       employees: {
         Row: {
           active: boolean
@@ -212,6 +233,7 @@ export type Database = {
         }[]
       }
       drinks_remaining_today: { Args: { _user_id: string }; Returns: number }
+      find_user_id_by_email: { Args: { _email: string }; Returns: string }
       has_active_subscription: {
         Args: { check_env?: string; user_uuid: string }
         Returns: boolean
@@ -224,6 +246,7 @@ export type Database = {
         Returns: boolean
       }
       tier_price_for_signup: { Args: { _n: number }; Returns: number }
+      verify_override_code: { Args: { _code: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "employee" | "member"

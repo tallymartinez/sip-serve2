@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ShieldOff, ShieldCheck, Pencil, Plus, Copy, Check } from "lucide-react";
+import { ShieldOff, ShieldCheck, Pencil, Plus, Copy, Check, Trash2, KeyRound, UserPlus, X } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
@@ -47,6 +47,7 @@ interface LogRow {
   member_name: string; member_email: string; employee_name: string;
 }
 interface Employee { id: string; full_name: string; employee_code: string; active: boolean; drinks: number; drinks_all: number; }
+interface AdminUser { user_id: string; email: string; full_name: string; }
 
 function Admin() {
   const { isAdmin, loading } = useAuth();
@@ -57,15 +58,20 @@ function Admin() {
   const [editing, setEditing] = useState<MemberRow | null>(null);
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [admins, setAdmins] = useState<AdminUser[]>([]);
+  const [overrideCode, setOverrideCode] = useState("");
+  const [overrideEdit, setOverrideEdit] = useState("");
 
   const since = useMemo(() => rangeStart(range), [range]);
 
   async function loadAll() {
-    const [profiles, redemps, allRedemps, emps] = await Promise.all([
+    const [profiles, redemps, allRedemps, emps, adminRoles, settings] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("redemptions").select("*").gte("redeemed_date", since).order("redeemed_at", { ascending: false }),
       supabase.from("redemptions").select("employee_id,drinks_redeemed"),
       supabase.from("employees").select("*").order("created_at", { ascending: false }),
+      supabase.from("user_roles").select("user_id").eq("role", "admin"),
+      supabase.from("admin_settings").select("override_code").eq("id", true).maybeSingle(),
     ]);
 
     const empMap = new Map((emps.data ?? []).map((e) => [e.id, e.full_name]));
@@ -109,6 +115,17 @@ function Admin() {
       drinks: empTally.get(e.id) ?? 0,
       drinks_all: empTallyAll.get(e.id) ?? 0,
     })));
+
+    const adminIds = (adminRoles.data ?? []).map((r) => r.user_id);
+    setAdmins(adminIds.map((uid) => {
+      const p = profMap.get(uid);
+      return { user_id: uid, email: p?.email ?? "(unknown)", full_name: p?.full_name ?? "" };
+    }));
+
+    if (settings.data?.override_code) {
+      setOverrideCode(settings.data.override_code);
+      setOverrideEdit(settings.data.override_code);
+    }
   }
 
   useEffect(() => { if (isAdmin) loadAll(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [isAdmin, since]);
@@ -190,6 +207,47 @@ function Admin() {
     }
   }
 
+  async function undoRedemption(l: LogRow) {
+    if (!confirm(`Undo this redemption (${l.drinks_redeemed} drink${l.drinks_redeemed > 1 ? "s" : ""} for ${l.member_name || l.member_email})?`)) return;
+    const { error } = await supabase.from("redemptions").delete().eq("id", l.id);
+    if (error) return toast.error(error.message);
+    toast.success("Redemption undone");
+    loadAll();
+  }
+
+  async function promoteAdmin(form: FormData) {
+    const email = String(form.get("admin_email") ?? "").trim().toLowerCase();
+    if (!email) return toast.error("Enter an email");
+    const { data: uid, error } = await supabase.rpc("find_user_id_by_email", { _email: email });
+    if (error) return toast.error(error.message);
+    if (!uid) return toast.error("No user with that email — they must sign up first");
+    const { error: insErr } = await supabase.from("user_roles").insert({ user_id: uid, role: "admin" });
+    if (insErr) {
+      if (insErr.code === "23505") return toast.error("Already an admin");
+      return toast.error(insErr.message);
+    }
+    toast.success("Admin granted");
+    loadAll();
+  }
+
+  async function demoteAdmin(a: AdminUser) {
+    if (admins.length <= 1) return toast.error("Cannot remove the last admin");
+    if (!confirm(`Remove admin access from ${a.email}?`)) return;
+    const { error } = await supabase.from("user_roles").delete().eq("user_id", a.user_id).eq("role", "admin");
+    if (error) return toast.error(error.message);
+    toast.success("Admin removed");
+    loadAll();
+  }
+
+  async function saveOverrideCode() {
+    const code = overrideEdit.trim();
+    if (!/^\d{4,8}$/.test(code)) return toast.error("Code must be 4–8 digits");
+    const { error } = await supabase.from("admin_settings").update({ override_code: code, updated_at: new Date().toISOString() }).eq("id", true);
+    if (error) return toast.error(error.message);
+    toast.success("Override code updated");
+    setOverrideCode(code);
+  }
+
   return (
     <main className="container mx-auto px-4 py-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -217,6 +275,8 @@ function Admin() {
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="logs">Redemption log</TabsTrigger>
           <TabsTrigger value="employees">Servers</TabsTrigger>
+          <TabsTrigger value="admins">Admins</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="members" className="mt-4">
@@ -262,6 +322,7 @@ function Admin() {
                 <TableRow>
                   <TableHead>When</TableHead><TableHead>Member</TableHead>
                   <TableHead>Server</TableHead><TableHead className="text-right">Drinks</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -271,9 +332,14 @@ function Admin() {
                     <TableCell>{l.member_name || l.member_email}</TableCell>
                     <TableCell>{l.employee_name}</TableCell>
                     <TableCell className="text-right">{l.drinks_redeemed}</TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="ghost" onClick={() => undoRedemption(l)} title="Undo redemption">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
-                {logs.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No redemptions in range</TableCell></TableRow>}
+                {logs.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No redemptions in range</TableCell></TableRow>}
               </TableBody>
             </Table>
           </div>
@@ -315,6 +381,68 @@ function Admin() {
                 {employees.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No servers yet</TableCell></TableRow>}
               </TableBody>
             </Table>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="admins" className="mt-4 space-y-4">
+          <form
+            onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); promoteAdmin(fd); e.currentTarget.reset(); }}
+            className="rounded-xl border border-border/60 bg-card p-4 grid gap-3 sm:grid-cols-[1fr_auto]"
+          >
+            <div>
+              <Label htmlFor="admin_email">Promote user to admin</Label>
+              <Input id="admin_email" name="admin_email" type="email" placeholder="user@example.com" required />
+              <p className="mt-1 text-xs text-muted-foreground">User must already have an account.</p>
+            </div>
+            <Button type="submit" className="self-end bg-gradient-primary"><UserPlus className="h-4 w-4 mr-1" />Grant admin</Button>
+          </form>
+          <div className="rounded-xl border border-border/60 bg-card overflow-x-auto">
+            <Table>
+              <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {admins.map((a) => (
+                  <TableRow key={a.user_id}>
+                    <TableCell>{a.full_name || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{a.email}</TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="outline" onClick={() => demoteAdmin(a)} disabled={admins.length <= 1}>
+                        <X className="h-4 w-4 mr-1" />Remove
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {admins.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-8">No admins</TableCell></TableRow>}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="settings" className="mt-4 space-y-4">
+          <div className="rounded-xl border border-border/60 bg-card p-6 max-w-xl">
+            <div className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-primary-glow" />
+              <h2 className="font-display text-xl">Override code</h2>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              A master code that can unlock the staff redemption terminal in place of the standard staff PIN — for troubleshooting or when staff forget the code. 4–8 digits.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+              <div>
+                <Label htmlFor="override">Current code</Label>
+                <Input
+                  id="override"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={8}
+                  value={overrideEdit}
+                  onChange={(e) => setOverrideEdit(e.target.value.replace(/\D/g, ""))}
+                  className="font-mono text-lg tracking-[0.3em]"
+                />
+              </div>
+              <Button onClick={saveOverrideCode} disabled={overrideEdit === overrideCode} className="self-end bg-gradient-primary">
+                Save
+              </Button>
+            </div>
           </div>
         </TabsContent>
       </Tabs>
