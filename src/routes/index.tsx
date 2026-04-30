@@ -68,6 +68,7 @@ const cocktailSections: { heading: string; subtitle?: string; items: { name: str
   },
   {
     heading: "Luxury Classics",
+    subtitle: "Not included with O.V. Cocktail Club membership",
     items: [
       { name: "Angel's Envy Rye Old Fashioned", notes: "", price: "28" },
       { name: "WhistlePig 10 Rye Manhattan", notes: "", price: "32" },
@@ -139,6 +140,9 @@ function Home() {
             {cocktailSections.map((section) => (
               <div key={section.heading}>
                 <h3 className="font-display text-2xl md:text-3xl text-primary-glow uppercase tracking-wider text-center">{section.heading}</h3>
+                {section.subtitle && (
+                  <p className="mt-2 text-center text-xs uppercase tracking-[0.2em] text-muted-foreground">{section.subtitle}</p>
+                )}
                 <div className="mt-6 grid gap-5 md:grid-cols-2">
                   {section.items.map((c) => (
                     <div key={c.name} className="rounded-xl border border-border/60 bg-card/80 p-5 shadow-card">
