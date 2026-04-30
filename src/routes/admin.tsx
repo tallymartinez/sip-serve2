@@ -1355,10 +1355,10 @@ function ReferralCodesPanel({ companyId, members }: { companyId: string; members
     toast.success("Code deleted");
     load();
   }
-  async function saveEdit(patch: Partial<ReferralCode>) {
+  async function saveEdit(patch: Partial<ReferralCode>): Promise<void> {
     if (!editing) return;
     const { error } = await supabase.from("referral_codes").update(patch).eq("id", editing.id);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     toast.success("Code updated");
     setEditing(null);
     load();
