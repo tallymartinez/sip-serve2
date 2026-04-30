@@ -197,6 +197,11 @@ function Home() {
         <p className="mt-3 text-muted-foreground">{content.closingBody}</p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link to="/dashboard"><Button size="lg" className="bg-gradient-primary shadow-glow">Open my card</Button></Link>
+          {content.closingLinkUrl && content.closingLinkLabel && (
+            <a href={content.closingLinkUrl} target="_blank" rel="noopener noreferrer">
+              <Button size="lg" variant="outline">{content.closingLinkLabel}</Button>
+            </a>
+          )}
         </div>
       </section>
     </main>
