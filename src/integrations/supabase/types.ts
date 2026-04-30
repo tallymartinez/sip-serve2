@@ -280,8 +280,8 @@ export type Database = {
           company_id: string | null
           created_at: string
           created_by: string | null
-          discount_type: string
-          discount_value: number
+          discount_type: string | null
+          discount_value: number | null
           expires_at: string | null
           id: string
           max_uses: number | null
@@ -296,8 +296,8 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           created_by?: string | null
-          discount_type: string
-          discount_value: number
+          discount_type?: string | null
+          discount_value?: number | null
           expires_at?: string | null
           id?: string
           max_uses?: number | null
@@ -312,8 +312,8 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           created_by?: string | null
-          discount_type?: string
-          discount_value?: number
+          discount_type?: string | null
+          discount_value?: number | null
           expires_at?: string | null
           id?: string
           max_uses?: number | null
