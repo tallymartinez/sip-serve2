@@ -1609,3 +1609,137 @@ function ReferralEditForm({ code, members, onSave, onCancel }: { code: ReferralC
     </form>
   );
 }
+
+function HomeContentEditor() {
+  const [content, setContent] = useState<HomeContent>(defaultHomeContent);
+  const [jsonText, setJsonText] = useState<string>(JSON.stringify(defaultHomeContent, null, 2));
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState<"simple" | "json">("simple");
+
+  useEffect(() => {
+    // Cast: types regenerate on first DB call once migration runs
+    (supabase.from("home_content" as never).select("data").eq("id" as never, "default" as never).maybeSingle() as unknown as Promise<{ data: { data: Partial<HomeContent> } | null; error: { message: string } | null }>)
+      .then(({ data, error }) => {
+        if (error) toast.error(error.message);
+        const merged = mergeHomeContent(data?.data ?? null);
+        setContent(merged);
+        setJsonText(JSON.stringify(merged, null, 2));
+        setLoading(false);
+      });
+  }, []);
+
+  function updateField<K extends keyof HomeContent>(key: K, value: HomeContent[K]) {
+    setContent((c) => {
+      const next = { ...c, [key]: value };
+      setJsonText(JSON.stringify(next, null, 2));
+      return next;
+    });
+  }
+
+  async function save(payload: HomeContent) {
+    setSaving(true);
+    const { error } = await (supabase.from("home_content" as never) as unknown as {
+      upsert: (row: Record<string, unknown>, opts: { onConflict: string }) => Promise<{ error: { message: string } | null }>;
+    }).upsert({ id: "default", data: payload, updated_at: new Date().toISOString() }, { onConflict: "id" });
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    toast.success("Member home page updated");
+    setContent(payload);
+    setJsonText(JSON.stringify(payload, null, 2));
+  }
+
+  function saveSimple() { save(content); }
+  function saveJson() {
+    try {
+      const parsed = JSON.parse(jsonText);
+      const merged = mergeHomeContent(parsed);
+      save(merged);
+    } catch (e) {
+      toast.error("Invalid JSON: " + (e as Error).message);
+    }
+  }
+  function reset() {
+    if (!confirm("Reset member home page to defaults?")) return;
+    save(defaultHomeContent);
+  }
+
+  if (loading) return <div className="text-sm text-muted-foreground">Loading…</div>;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="font-display text-2xl">Member home page</h2>
+          <p className="text-sm text-muted-foreground">Edit the welcome copy, cocktail lists, and closing CTA shown to signed-in members on the home page.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={reset}>Reset to defaults</Button>
+        </div>
+      </div>
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+        <TabsList>
+          <TabsTrigger value="simple">Simple editor</TabsTrigger>
+          <TabsTrigger value="json">Advanced (JSON)</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="simple" className="mt-4 space-y-6">
+          <div className="rounded-xl border border-border/60 bg-card p-5 space-y-4">
+            <h3 className="font-medium">Welcome message</h3>
+            <div>
+              <Label>Heading</Label>
+              <Input value={content.welcomeHeading} onChange={(e) => updateField("welcomeHeading", e.target.value)} />
+            </div>
+            <div>
+              <Label>Body paragraphs (one per line, blank line to separate)</Label>
+              <Textarea
+                rows={10}
+                value={content.welcomeParagraphs.join("\n\n")}
+                onChange={(e) => updateField("welcomeParagraphs", e.target.value.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean))}
+              />
+            </div>
+            <div>
+              <Label>Sign-off</Label>
+              <Textarea rows={2} value={content.welcomeSignoff} onChange={(e) => updateField("welcomeSignoff", e.target.value)} />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/60 bg-card p-5 space-y-4">
+            <h3 className="font-medium">Cocktails section</h3>
+            <div>
+              <Label>Intro line under "Cocktails"</Label>
+              <Input value={content.cocktailsIntro} onChange={(e) => updateField("cocktailsIntro", e.target.value)} />
+            </div>
+            <p className="text-xs text-muted-foreground">To add or remove cocktails and sections, use the Advanced (JSON) tab.</p>
+          </div>
+
+          <div className="rounded-xl border border-border/60 bg-card p-5 space-y-4">
+            <h3 className="font-medium">Closing CTA</h3>
+            <div>
+              <Label>Heading</Label>
+              <Input value={content.closingHeading} onChange={(e) => updateField("closingHeading", e.target.value)} />
+            </div>
+            <div>
+              <Label>Body</Label>
+              <Textarea rows={3} value={content.closingBody} onChange={(e) => updateField("closingBody", e.target.value)} />
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={saveSimple} disabled={saving} className="bg-gradient-primary shadow-glow">{saving ? "Saving…" : "Save changes"}</Button>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="json" className="mt-4 space-y-3">
+          <p className="text-sm text-muted-foreground">Edit the full home content as JSON. Useful for adding/removing cocktail sections and items.</p>
+          <Textarea rows={28} value={jsonText} onChange={(e) => setJsonText(e.target.value)} className="font-mono text-xs" />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setJsonText(JSON.stringify(content, null, 2))}>Revert</Button>
+            <Button onClick={saveJson} disabled={saving} className="bg-gradient-primary shadow-glow">{saving ? "Saving…" : "Save JSON"}</Button>
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
