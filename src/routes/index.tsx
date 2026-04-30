@@ -1,10 +1,41 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Wine, Sparkles, QrCode, ShieldCheck } from "lucide-react";
+import { Wine, Sparkles, QrCode, ShieldCheck, Check } from "lucide-react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({ component: Index });
 
+interface TierInfo {
+  total_members: number;
+  next_signup_number: number;
+  price_cents: number;
+  spots_left_in_tier: number | null;
+}
+
 function Index() {
+  const [tier, setTier] = useState<TierInfo | null>(null);
+
+  useEffect(() => {
+    supabase.rpc("current_tier_info").then(({ data }) => {
+      if (Array.isArray(data) && data.length) setTier(data[0] as TierInfo);
+    });
+  }, []);
+
+  const currentTierIndex = tier
+    ? tier.next_signup_number <= 100
+      ? 0
+      : tier.next_signup_number <= 200
+        ? 1
+        : 2
+    : 0;
+
+  const tiers = [
+    { name: "Founders", price: 80, range: "Members 1–100", note: "Locked for life" },
+    { name: "Early", price: 90, range: "Members 101–200", note: "Locked for life" },
+    { name: "Standard", price: 100, range: "Members 201+", note: "Current rate" },
+  ];
+
   return (
     <main>
       <section className="bg-hero relative overflow-hidden">
@@ -22,6 +53,17 @@ function Index() {
             <Link to="/signup"><Button size="lg" className="bg-gradient-primary shadow-glow">Become a member</Button></Link>
             <Link to="/login"><Button size="lg" variant="outline">Member sign in</Button></Link>
           </div>
+          {tier && (
+            <p className="mt-6 text-sm text-muted-foreground">
+              Join now at{" "}
+              <span className="text-primary-glow font-semibold">
+                ${(tier.price_cents / 100).toFixed(0)}/mo
+              </span>
+              {tier.spots_left_in_tier !== null && tier.spots_left_in_tier > 0 && (
+                <> · only {tier.spots_left_in_tier} spot{tier.spots_left_in_tier === 1 ? "" : "s"} left at this price</>
+              )}
+            </p>
+          )}
         </div>
       </section>
 
@@ -37,6 +79,64 @@ function Index() {
             <p className="mt-2 text-sm text-muted-foreground">{body}</p>
           </div>
         ))}
+      </section>
+
+      <section className="container mx-auto px-4 pb-24">
+        <div className="text-center max-w-2xl mx-auto">
+          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Membership pricing</p>
+          <h2 className="mt-3 font-display text-4xl md:text-5xl">The earlier you join, the less you pay — forever.</h2>
+          <p className="mt-3 text-muted-foreground">
+            Your price locks in the day you sign up. It never goes up, even when the next tier opens.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-6 md:grid-cols-3 max-w-5xl mx-auto">
+          {tiers.map((t, i) => {
+            const isCurrent = i === currentTierIndex;
+            const isPast = i < currentTierIndex;
+            return (
+              <div
+                key={t.name}
+                className={`rounded-2xl border p-8 shadow-card relative ${
+                  isCurrent
+                    ? "border-primary/60 bg-velvet shadow-velvet"
+                    : "border-border/60 bg-card"
+                } ${isPast ? "opacity-50" : ""}`}
+              >
+                {isCurrent && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-primary px-3 py-1 text-xs uppercase tracking-widest text-primary-foreground shadow-glow">
+                    Available now
+                  </div>
+                )}
+                <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">{t.name}</p>
+                <div className="mt-3 flex items-baseline gap-1">
+                  <span className={`font-display text-5xl ${isCurrent ? "text-gradient" : ""}`}>${t.price}</span>
+                  <span className="text-muted-foreground">/ mo</span>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{t.range}</p>
+                <p className="text-xs text-primary-glow mt-1">{t.note}</p>
+
+                <ul className="mt-6 space-y-2 text-sm">
+                  {["Two cocktails every night", "Personal QR member card", "Cancel anytime after 90 days"].map((b) => (
+                    <li key={b} className="flex items-start gap-2">
+                      <Check className="mt-0.5 h-4 w-4 text-primary-glow shrink-0" />
+                      <span className="text-muted-foreground">{b}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {isCurrent && (
+                  <Link to="/signup" className="mt-6 block">
+                    <Button className="w-full bg-gradient-primary shadow-glow">Claim ${t.price}/mo</Button>
+                  </Link>
+                )}
+                {isPast && (
+                  <p className="mt-6 text-center text-xs text-muted-foreground">Sold out</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </section>
     </main>
   );
