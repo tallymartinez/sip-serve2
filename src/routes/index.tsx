@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { GlassWater, Sparkles, Flame, Star } from "lucide-react";
+import { GlassWater, Sparkles, Flame, Star, Wine, Beer } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -20,11 +20,71 @@ const promotions = [
   { title: "Founders' Hour", body: "Founding members get a complimentary tasting flight on the first Sunday of each month.", tag: "Founders" },
 ];
 
-const cocktails = [
-  { name: "Velvet Negroni", notes: "Campari, sweet vermouth, barrel-rested gin. Bittersweet, silky, unforgettable.", accent: "Bitter · Stirred" },
-  { name: "Smoke & Stone", notes: "Mezcal, charred pineapple, lime, a whisper of habanero. Smoldering and bright.", accent: "Smoky · Shaken" },
-  { name: "Midnight Garden", notes: "Gin, elderflower, cucumber, basil oil. Crisp, herbal, garden-fresh.", accent: "Herbal · Crisp" },
-  { name: "Old Vines Old Fashioned", notes: "Single-barrel bourbon, demerara, black walnut bitters, orange oil.", accent: "Spirit-forward" },
+const cocktailSections: { heading: string; subtitle?: string; items: { name: string; notes: string; price?: string }[] }[] = [
+  {
+    heading: "Bright & Bubbly",
+    items: [
+      { name: "First Class", notes: "evan williams bourbon, aperol, amaro nonino, peach, mint, prosecco, lemon" },
+      { name: "Green Goose", notes: "grey goose la poire, st. germain, soda" },
+    ],
+  },
+  {
+    heading: "Playful & Confident",
+    items: [
+      { name: "Snake in the Grass", notes: "palomo mezcal, reposado tequila, green pepper cordial, boomsma, lime" },
+      { name: "Mint to Be", notes: "prairie organic gin, appleton estate rum, cucumber cordial, coconut, lime — clarified" },
+      { name: "Work Wife", notes: "gray whale gin, lime, strawberry, cucumber, fennel foam" },
+    ],
+  },
+  {
+    heading: "Boozy & Timeless",
+    items: [
+      { name: "All Bark Some Bite", notes: "cherry bark infused bourbon, st. elizabeth allspice dram, maraschino liqueur, maple, walnut", price: "19" },
+      { name: "Clear Conscience", notes: "grey goose berry rouge, aperol, passion fruit, guava, lemon — clarified", price: "19" },
+      { name: "Black Magik", notes: "george dickel rye, blended scotch, averna, masala, orange bitters", price: "19" },
+    ],
+  },
+  {
+    heading: "Crowd Pleasers",
+    items: [
+      { name: "Crowd Pleaser", notes: "grainger organic vodka, lillet blanc, lemon, blueberry shrub, rosemary, vanilla" },
+      { name: "Shrub Life", notes: "blanco tequila, chareau aloe liqueur, lime, pineapple shrub, mint" },
+      { name: "Pura Vida", notes: "blanco tequila, pierre ferrand dry curaçao, habanero, tamarind, pomegranate foam" },
+    ],
+  },
+  {
+    heading: "Tiki Time",
+    items: [
+      { name: "Papa's Painkiller", notes: "pilar blonde rum, mango nectar, pineapple, lime, falernum, amaro di angostura" },
+      { name: "Bleak Midwinter", notes: "new riff bonded bourbon, pineapple, espresso, cinnamon, allspice, lime" },
+    ],
+  },
+  {
+    heading: "Zero Proof",
+    items: [
+      { name: "Welcome to the Shruburbs", notes: "seedlip spice 94, pineapple shrub, lime", price: "14" },
+      { name: "Cucumber Medley", notes: "seedlip grove 42, cucumber cordial, lime", price: "14" },
+    ],
+  },
+  {
+    heading: "Luxury Classics",
+    items: [
+      { name: "Angel's Envy Rye Old Fashioned", notes: "", price: "28" },
+      { name: "WhistlePig 10 Rye Manhattan", notes: "", price: "32" },
+      { name: "Monkey 47 or Beluga Gold Line Martini", notes: "", price: "26 | 32" },
+      { name: "Casa Dragones Blanco Margarita", notes: "", price: "26" },
+    ],
+  },
+];
+
+const beers = [
+  { name: "High 5 IPA", origin: "Fort Myers, FL", price: "9" },
+  { name: "Peroni Nastro Azzurro Pilsner", origin: "Vigevano, IT", price: "8" },
+  { name: "Allagash White Wheat", origin: "Portland, ME", price: "9" },
+  { name: "Guinness Stout", origin: "Dublin, IE", price: "9" },
+  { name: "Miller Lite Lager", origin: "Milwaukee, WI", price: "8" },
+  { name: "Samuel Adams Lager", origin: "Boston, MA", price: "9" },
+  { name: "Athletic Lite (NA)", origin: "Stratford, CT", price: "8" },
 ];
 
 function Home() {
@@ -72,21 +132,55 @@ function Home() {
         <div className="container mx-auto px-4 py-20">
           <div className="text-center max-w-2xl mx-auto">
             <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground inline-flex items-center gap-2"><Star className="h-3.5 w-3.5 text-primary-glow" /> The list</p>
-            <h2 className="mt-3 font-display text-4xl md:text-5xl">Signature cocktails</h2>
-            <p className="mt-3 text-muted-foreground">A rotating list of house originals, refined over countless late nights behind the bar.</p>
+            <h2 className="mt-3 font-display text-4xl md:text-5xl">Cocktails</h2>
+            <p className="mt-3 text-muted-foreground">$18 unless noted otherwise. Crafted nightly at the Old Vines bar.</p>
           </div>
-          <div className="mt-12 grid gap-6 md:grid-cols-2">
-            {cocktails.map((c) => (
-              <div key={c.name} className="rounded-xl border border-border/60 bg-card/80 p-6 shadow-card">
-                <div className="flex items-start justify-between gap-3">
-                  <h3 className="font-display text-2xl">{c.name}</h3>
-                  <GlassWater className="h-6 w-6 text-primary-glow shrink-0" />
+          <div className="mt-14 space-y-14 max-w-5xl mx-auto">
+            {cocktailSections.map((section) => (
+              <div key={section.heading}>
+                <h3 className="font-display text-2xl md:text-3xl text-primary-glow uppercase tracking-wider text-center">{section.heading}</h3>
+                <div className="mt-6 grid gap-5 md:grid-cols-2">
+                  {section.items.map((c) => (
+                    <div key={c.name} className="rounded-xl border border-border/60 bg-card/80 p-5 shadow-card">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <h4 className="font-display text-xl">{c.name}</h4>
+                        {c.price && <span className="text-sm text-primary-glow font-medium shrink-0">${c.price}</span>}
+                      </div>
+                      {c.notes && <p className="mt-2 text-sm text-muted-foreground">{c.notes}</p>}
+                    </div>
+                  ))}
                 </div>
-                <p className="mt-2 text-sm text-muted-foreground">{c.notes}</p>
-                <p className="mt-3 text-[11px] uppercase tracking-[0.25em] text-primary-glow">{c.accent}</p>
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Beer */}
+      <section className="container mx-auto px-4 py-20 max-w-4xl">
+        <div className="text-center">
+          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground inline-flex items-center gap-2"><Beer className="h-3.5 w-3.5 text-primary-glow" /> On tap & bottled</p>
+          <h2 className="mt-3 font-display text-4xl md:text-5xl">Beer</h2>
+        </div>
+        <div className="mt-10 grid gap-3 sm:grid-cols-2">
+          {beers.map((b) => (
+            <div key={b.name} className="flex items-baseline justify-between gap-3 border-b border-border/40 py-3">
+              <div>
+                <p className="font-medium">{b.name}</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">{b.origin}</p>
+              </div>
+              <span className="text-sm text-primary-glow font-medium">${b.price}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Wine teaser */}
+      <section className="bg-velvet/30 border-y border-border/40">
+        <div className="container mx-auto px-4 py-16 text-center max-w-2xl">
+          <Wine className="mx-auto h-6 w-6 text-primary-glow" />
+          <h2 className="mt-4 font-display text-3xl md:text-4xl">Wine by the glass</h2>
+          <p className="mt-3 text-muted-foreground">Sparkling, white, rosé and red — Prosecco, Albariño, Pinot Noir, Cabernet, and our award-winning cellar selection. Ask your server for the full list.</p>
         </div>
       </section>
 
