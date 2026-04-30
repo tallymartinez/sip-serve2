@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StaffRouteImport } from './routes/staff'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RedeemMemberIdRouteImport } from './routes/redeem/$memberId'
 
+const StaffRoute = StaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/staff': typeof StaffRoute
   '/redeem/$memberId': typeof RedeemMemberIdRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/staff': typeof StaffRoute
   '/redeem/$memberId': typeof RedeemMemberIdRoute
 }
 export interface FileRoutesById {
@@ -61,19 +69,27 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/staff': typeof StaffRoute
   '/redeem/$memberId': typeof RedeemMemberIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/login' | '/signup' | '/redeem/$memberId'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/login'
+    | '/signup'
+    | '/staff'
+    | '/redeem/$memberId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/login' | '/signup' | '/redeem/$memberId'
+  to: '/' | '/dashboard' | '/login' | '/signup' | '/staff' | '/redeem/$memberId'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
     | '/login'
     | '/signup'
+    | '/staff'
     | '/redeem/$memberId'
   fileRoutesById: FileRoutesById
 }
@@ -82,11 +98,19 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
+  StaffRoute: typeof StaffRoute
   RedeemMemberIdRoute: typeof RedeemMemberIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/staff': {
+      id: '/staff'
+      path: '/staff'
+      fullPath: '/staff'
+      preLoaderRoute: typeof StaffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -130,6 +154,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
+  StaffRoute: StaffRoute,
   RedeemMemberIdRoute: RedeemMemberIdRoute,
 }
 export const routeTree = rootRouteImport
