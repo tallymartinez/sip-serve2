@@ -1317,7 +1317,15 @@ function ImageUploader({
   );
 }
 
-function GalleryUploader({ value, onChange }: { value: string[]; onChange: (urls: string[]) => void }) {
+function GalleryUploader({
+  value, onChange,
+  displays, onDisplaysChange,
+}: {
+  value: string[];
+  onChange: (urls: string[]) => void;
+  displays?: DisplaySettings[];
+  onDisplaysChange?: (next: DisplaySettings[]) => void;
+}) {
   const [uploading, setUploading] = useState(false);
   async function handleFiles(files: FileList) {
     setUploading(true);
@@ -1332,8 +1340,32 @@ function GalleryUploader({ value, onChange }: { value: string[]; onChange: (urls
       const { data } = supabase.storage.from("home-images").getPublicUrl(path);
       urls.push(data.publicUrl);
     }
-    if (urls.length) onChange([...value, ...urls]);
+    if (urls.length) {
+      onChange([...value, ...urls]);
+      if (onDisplaysChange) {
+        const padded = [...(displays ?? [])];
+        while (padded.length < value.length) padded.push({});
+        for (let i = 0; i < urls.length; i++) padded.push({});
+        onDisplaysChange(padded);
+      }
+    }
     setUploading(false);
+  }
+  function removeAt(i: number) {
+    onChange(value.filter((_, idx) => idx !== i));
+    if (onDisplaysChange) {
+      const padded = [...(displays ?? [])];
+      while (padded.length < value.length) padded.push({});
+      padded.splice(i, 1);
+      onDisplaysChange(padded);
+    }
+  }
+  function setDisplayAt(i: number, next: DisplaySettings) {
+    if (!onDisplaysChange) return;
+    const padded = [...(displays ?? [])];
+    while (padded.length < value.length) padded.push({});
+    padded[i] = next;
+    onDisplaysChange(padded);
   }
   return (
     <div className="space-y-2">
@@ -1344,7 +1376,7 @@ function GalleryUploader({ value, onChange }: { value: string[]; onChange: (urls
             <img src={url} alt="" className="h-20 w-28 object-cover rounded-md border border-border/60" />
             <button
               type="button"
-              onClick={() => onChange(value.filter((_, idx) => idx !== i))}
+              onClick={() => removeAt(i)}
               className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center shadow"
               aria-label="Remove image"
             >×</button>
@@ -1362,6 +1394,21 @@ function GalleryUploader({ value, onChange }: { value: string[]; onChange: (urls
       />
       {uploading && <p className="text-xs text-muted-foreground">Uploading…</p>}
       <p className="text-xs text-muted-foreground">Upload multiple at once. Drag to reorder coming later — for now, remove and re-upload to reorder.</p>
+      {onDisplaysChange && value.length > 0 && (
+        <div className="space-y-4 pt-2">
+          {value.map((url, i) => (
+            <div key={`disp-${i}`} className="rounded-md border border-border/60 p-3">
+              <p className="text-xs font-medium mb-2">Photo {i + 1} view</p>
+              <DisplayControls
+                url={url}
+                display={displays?.[i]}
+                onChange={(next) => setDisplayAt(i, next)}
+                defaultHeight={260}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
