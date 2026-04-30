@@ -8,9 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Wine, CheckCircle2, Lock } from "lucide-react";
 import { toast } from "sonner";
 
-// Shared staff access code — same for every server.
-const STAFF_ACCESS_CODE = "2580";
-
 export const Route = createFileRoute("/redeem/$memberId")({
   component: Redeem,
 });
@@ -22,6 +19,13 @@ interface MemberInfo {
   subscription_status: string;
   remaining: number;
 }
+interface VenuePublic {
+  venue_pin: string;
+  daily_drink_limit: number;
+  venue_name: string;
+  redemptions_paused: boolean;
+  paused_message: string | null;
+}
 
 function Redeem() {
   const { memberId } = Route.useParams();
@@ -31,6 +35,12 @@ function Redeem() {
   const [empCode, setEmpCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [venue, setVenue] = useState<VenuePublic | null>(null);
+
+  useEffect(() => {
+    supabase.from("venue_settings").select("venue_pin,daily_drink_limit,venue_name,redemptions_paused,paused_message").eq("id", true).maybeSingle()
+      .then(({ data }) => { if (data) setVenue(data as VenuePublic); });
+  }, []);
 
   async function load() {
     setErr(null);
@@ -46,7 +56,7 @@ function Redeem() {
   async function tryUnlock(e: React.FormEvent) {
     e.preventDefault();
     const code = accessCode.trim();
-    if (code === STAFF_ACCESS_CODE) {
+    if (venue && code === venue.venue_pin) {
       setUnlocked(true);
       return;
     }
@@ -62,6 +72,7 @@ function Redeem() {
 
   async function redeem(qty: 1 | 2) {
     if (!info) return;
+    if (venue?.redemptions_paused) return toast.error(venue.paused_message || "Redemptions are paused");
     if (info.subscription_status !== "active") return toast.error("Subscription is not active");
     if (info.remaining < qty) return toast.error(`Only ${info.remaining} drink(s) left today`);
     if (!empCode.trim()) return toast.error("Enter your server ID");
@@ -136,9 +147,15 @@ function Redeem() {
           <div className="mt-4 flex items-center gap-3 rounded-lg bg-background/50 border border-border/60 p-4">
             <Wine className="h-6 w-6 text-primary-glow" />
             <div>
-              <p className="font-display text-xl"><span className="text-gradient">{info.remaining}</span> <span className="text-muted-foreground text-sm">/ 2 left today</span></p>
+              <p className="font-display text-xl"><span className="text-gradient">{info.remaining}</span> <span className="text-muted-foreground text-sm">/ {venue?.daily_drink_limit ?? 2} left today</span></p>
             </div>
           </div>
+
+          {venue?.redemptions_paused && (
+            <div className="mt-4 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+              {venue.paused_message || "Redemptions are temporarily paused."}
+            </div>
+          )}
 
           <div className="mt-6">
             <Label htmlFor="empcode">Your server ID</Label>
