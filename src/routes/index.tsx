@@ -114,6 +114,7 @@ const beers = [
 function Home() {
   const [cocktailsOpen, setCocktailsOpen] = useState(false);
   const [supperOpen, setSupperOpen] = useState(false);
+  const [beerOpen, setBeerOpen] = useState(false);
   return (
     <main>
       {/* Hero */}
@@ -217,18 +218,30 @@ function Home() {
         <div className="text-center">
           <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground inline-flex items-center gap-2"><Beer className="h-3.5 w-3.5 text-primary-glow" /> On tap & bottled</p>
           <h2 className="mt-3 font-display text-4xl md:text-5xl">Beer</h2>
+          <div className="mt-6 flex justify-center">
+            <Button
+              onClick={() => setBeerOpen((o) => !o)}
+              variant="outline"
+              aria-expanded={beerOpen}
+            >
+              Mercato Beer
+              <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${beerOpen ? "rotate-180" : ""}`} />
+            </Button>
+          </div>
         </div>
-        <div className="mt-10 grid gap-3 sm:grid-cols-2">
-          {beers.map((b) => (
-            <div key={b.name} className="flex items-baseline justify-between gap-3 border-b border-border/40 py-3">
-              <div>
-                <p className="font-medium">{b.name}</p>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">{b.origin}</p>
+        {beerOpen && (
+          <div className="mt-10 grid gap-3 sm:grid-cols-2">
+            {beers.map((b) => (
+              <div key={b.name} className="flex items-baseline justify-between gap-3 border-b border-border/40 py-3">
+                <div>
+                  <p className="font-medium">{b.name}</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">{b.origin}</p>
+                </div>
+                <span className="text-sm text-primary-glow font-medium">${b.price}</span>
               </div>
-              <span className="text-sm text-primary-glow font-medium">${b.price}</span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Wine teaser */}
