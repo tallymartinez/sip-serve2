@@ -246,7 +246,7 @@ function Admin() {
   async function saveCompany(patch: Partial<Company>) {
     if (!activeCompany) return;
     const { error } = await supabase.from("companies").update(patch).eq("id", activeCompany.id);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     toast.success("Company saved");
     setCompanies((cs) => cs.map((c) => (c.id === activeCompany.id ? { ...c, ...patch } : c)));
   }
@@ -263,9 +263,9 @@ function Admin() {
 
   async function saveVenue(patch: Partial<Venue>) {
     if (!editingVenue) return;
-    if (patch.venue_pin && !/^\d{4,8}$/.test(patch.venue_pin)) return toast.error("PIN must be 4–8 digits");
+    if (patch.venue_pin && !/^\d{4,8}$/.test(patch.venue_pin)) { toast.error("PIN must be 4–8 digits"); return; }
     const { error } = await supabase.from("venues").update(patch).eq("id", editingVenue.id);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     toast.success("Venue saved");
     setEditingVenue(null);
     loadAll();
@@ -374,6 +374,7 @@ function Admin() {
   async function demoteAdmin(a: AdminUser) {
     if (admins.length <= 1) return toast.error("Cannot remove the last admin");
     if (!confirm(`Remove admin access from ${a.email}?`)) return;
+    if (!activeCompanyId) return;
     const { error } = await supabase.from("user_roles").delete().eq("user_id", a.user_id).eq("role", "admin").eq("company_id", activeCompanyId);
     if (error) return toast.error(error.message);
     toast.success("Admin removed");
