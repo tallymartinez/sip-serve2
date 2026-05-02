@@ -217,6 +217,18 @@ function Admin() {
         member_name: memberProfile?.full_name || memberProfile?.email || "—",
       };
     }));
+
+    // Comp memberships (super admin only — RLS will return only own-rows for non-super-admins)
+    const memberIds = (pRes.data ?? []).map((p) => p.id);
+    if (memberIds.length > 0) {
+      const { data: comps } = await supabase
+        .from("comp_memberships")
+        .select("user_id")
+        .in("user_id", memberIds);
+      setCompIds(new Set((comps ?? []).map((c) => c.user_id)));
+    } else {
+      setCompIds(new Set());
+    }
   }
 
   useEffect(() => { if (isAdmin && activeCompanyId) loadAll(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [isAdmin, activeCompanyId, since]);
