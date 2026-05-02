@@ -56,7 +56,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function Header() {
-  const { user, isAdmin, isEmployee, signOut } = useAuth();
+  const { user, isAdmin, isEmployee, isManager, signOut } = useAuth();
   const router = useRouter();
   return (
     <header className="border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
@@ -73,6 +73,7 @@ function Header() {
             <>
               <Link to="/dashboard"><Button variant="ghost" size="sm" className="px-2 sm:px-3">My card</Button></Link>
               {isEmployee && <Link to="/staff"><Button variant="ghost" size="sm" className="px-2 sm:px-3">Staff</Button></Link>}
+              {isManager && !isAdmin && <Link to="/manager"><Button variant="ghost" size="sm" className="px-2 sm:px-3">Manager</Button></Link>}
               {isAdmin && <Link to="/admin"><Button variant="ghost" size="sm" className="px-2 sm:px-3">Admin</Button></Link>}
               <Button variant="outline" size="sm" className="px-2 sm:px-3" onClick={async () => { await signOut(); router.navigate({ to: "/" }); }}>
                 <LogOut className="h-4 w-4" />
