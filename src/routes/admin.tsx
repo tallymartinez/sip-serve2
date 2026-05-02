@@ -1191,6 +1191,203 @@ function VenueDataPanel({ venues, employees }: { venues: Venue[]; employees: Emp
   );
 }
 
+// ============= Managers panel (super admin only) =============
+interface ManagerRow { user_id: string; email: string; full_name: string; venue_ids: string[]; }
+
+function ManagersPanel({ venues }: { venues: Venue[] }) {
+  const [managers, setManagers] = useState<ManagerRow[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
+  const [editing, setEditing] = useState<ManagerRow | null>(null);
+
+  async function load() {
+    setLoadingList(true);
+    try {
+      const { data: roleRows } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "manager");
+      const ids = Array.from(new Set((roleRows ?? []).map((r) => r.user_id)));
+      if (ids.length === 0) { setManagers([]); return; }
+      const [{ data: profs }, { data: assigns }] = await Promise.all([
+        supabase.from("profiles").select("id,email,full_name").in("id", ids),
+        supabase.from("manager_venues").select("user_id,venue_id").in("user_id", ids),
+      ]);
+      const profMap = new Map((profs ?? []).map((p) => [p.id, p]));
+      const venueByUser = new Map<string, string[]>();
+      for (const a of assigns ?? []) {
+        const arr = venueByUser.get(a.user_id) ?? [];
+        arr.push(a.venue_id);
+        venueByUser.set(a.user_id, arr);
+      }
+      setManagers(ids.map((uid) => {
+        const p = profMap.get(uid);
+        return {
+          user_id: uid,
+          email: p?.email ?? "(unknown)",
+          full_name: p?.full_name ?? "",
+          venue_ids: venueByUser.get(uid) ?? [],
+        };
+      }));
+    } finally {
+      setLoadingList(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function promoteManager(form: FormData) {
+    const email = String(form.get("manager_email") ?? "").trim().toLowerCase();
+    if (!email) return toast.error("Enter an email");
+    const { data: uid, error } = await supabase.rpc("find_user_id_by_email", { _email: email });
+    if (error) return toast.error(error.message);
+    if (!uid) return toast.error("No user with that email — they must sign up first");
+    const { error: insErr } = await supabase
+      .from("user_roles")
+      .insert({ user_id: uid, role: "manager" });
+    if (insErr && insErr.code !== "23505") return toast.error(insErr.message);
+    toast.success("Manager role granted");
+    load();
+  }
+
+  async function removeManager(m: ManagerRow) {
+    if (!confirm(`Remove manager access from ${m.email}? All venue assignments will be cleared.`)) return;
+    const [{ error: e1 }, { error: e2 }] = await Promise.all([
+      supabase.from("manager_venues").delete().eq("user_id", m.user_id),
+      supabase.from("user_roles").delete().eq("user_id", m.user_id).eq("role", "manager"),
+    ]);
+    if (e1 || e2) return toast.error((e1 ?? e2)!.message);
+    toast.success("Manager removed");
+    load();
+  }
+
+  const venueName = (id: string) => venues.find((v) => v.id === id)?.name ?? "—";
+
+  return (
+    <div className="space-y-4">
+      <form
+        onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); promoteManager(fd); e.currentTarget.reset(); }}
+        className="rounded-xl border border-border/60 bg-card p-4 grid gap-3 sm:grid-cols-[1fr_auto]"
+      >
+        <div>
+          <Label htmlFor="manager_email">Promote a user to manager</Label>
+          <Input id="manager_email" name="manager_email" type="email" placeholder="user@example.com" required />
+          <p className="mt-1 text-xs text-muted-foreground">Managers get a read-only dashboard for their assigned venues. User must already have an account.</p>
+        </div>
+        <Button type="submit" className="self-end bg-gradient-primary"><UserPlus className="h-4 w-4 mr-1" />Grant manager</Button>
+      </form>
+
+      <div className="rounded-xl border border-border/60 bg-card overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Assigned venues</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {managers.map((m) => (
+              <TableRow key={m.user_id}>
+                <TableCell>{m.full_name || "—"}</TableCell>
+                <TableCell className="text-muted-foreground">{m.email}</TableCell>
+                <TableCell>
+                  {m.venue_ids.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">None</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {m.venue_ids.map((vid) => <Badge key={vid} variant="outline">{venueName(vid)}</Badge>)}
+                    </div>
+                  )}
+                </TableCell>
+                <TableCell className="text-right space-x-2">
+                  <Button size="sm" variant="outline" onClick={() => setEditing(m)}><Pencil className="h-4 w-4 mr-1" />Venues</Button>
+                  <Button size="sm" variant="outline" onClick={() => removeManager(m)}><X className="h-4 w-4 mr-1" />Remove</Button>
+                </TableCell>
+              </TableRow>
+            ))}
+            {!loadingList && managers.length === 0 && (
+              <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No managers yet</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Assign venues to {editing?.full_name || editing?.email}</DialogTitle></DialogHeader>
+          {editing && (
+            <ManagerVenueEditor
+              manager={editing}
+              venues={venues}
+              onSaved={() => { setEditing(null); load(); }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function ManagerVenueEditor({ manager, venues, onSaved }: { manager: ManagerRow; venues: Venue[]; onSaved: () => void }) {
+  const [selected, setSelected] = useState<Set<string>>(new Set(manager.venue_ids));
+  const [saving, setSaving] = useState(false);
+
+  function toggle(id: string) {
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      const original = new Set(manager.venue_ids);
+      const toAdd = Array.from(selected).filter((id) => !original.has(id));
+      const toRemove = Array.from(original).filter((id) => !selected.has(id));
+      if (toAdd.length > 0) {
+        const { error } = await supabase.from("manager_venues").insert(toAdd.map((vid) => ({ user_id: manager.user_id, venue_id: vid })));
+        if (error) { toast.error(error.message); return; }
+      }
+      if (toRemove.length > 0) {
+        const { error } = await supabase.from("manager_venues").delete().eq("user_id", manager.user_id).in("venue_id", toRemove);
+        if (error) { toast.error(error.message); return; }
+      }
+      toast.success("Venue assignments saved");
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {venues.length === 0 && <p className="text-sm text-muted-foreground">No venues in this company yet.</p>}
+      <div className="max-h-[300px] overflow-y-auto rounded-md border border-border/60 divide-y divide-border/60">
+        {venues.map((v) => (
+          <label key={v.id} className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/30">
+            <input
+              type="checkbox"
+              checked={selected.has(v.id)}
+              onChange={() => toggle(v.id)}
+              className="h-4 w-4 accent-primary"
+            />
+            <div>
+              <div className="font-medium">{v.name}</div>
+              {v.address && <div className="text-xs text-muted-foreground">{v.address}</div>}
+            </div>
+          </label>
+        ))}
+      </div>
+      <DialogFooter>
+        <Button onClick={save} disabled={saving} className="bg-gradient-primary">{saving ? "Saving…" : "Save assignments"}</Button>
+      </DialogFooter>
+    </div>
+  );
+}
+
 type DisplaySettings = Omit<ImageDisplay, "url">;
 
 function DisplayControls({
