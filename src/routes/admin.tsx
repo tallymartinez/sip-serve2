@@ -669,6 +669,13 @@ function Admin() {
           {activeCompanyId && <ReferralCodesPanel companyId={activeCompanyId} members={members} />}
         </TabsContent>
 
+        {/* ===== Managers (super admin only) ===== */}
+        {isSuperAdmin && (
+          <TabsContent value="managers" className="mt-4">
+            <ManagersPanel venues={companyVenues} />
+          </TabsContent>
+        )}
+
         {/* ===== Settings ===== */}
         <TabsContent value="settings" className="mt-4 space-y-4">
           {/* Company-wide settings */}
