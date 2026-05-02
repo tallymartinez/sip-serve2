@@ -134,6 +134,27 @@ export type Database = {
         }
         Relationships: []
       }
+      manager_venues: {
+        Row: {
+          created_at: string
+          id: string
+          user_id: string
+          venue_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          user_id: string
+          venue_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          user_id?: string
+          venue_id?: string
+        }
+        Relationships: []
+      }
       override_uses: {
         Row: {
           admin_user_id: string
@@ -506,6 +527,11 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_venue_manager: {
+        Args: { _user_id: string; _venue_id: string }
+        Returns: boolean
+      }
+      manager_venue_ids: { Args: { _user_id: string }; Returns: string[] }
       redeem_referral_code: { Args: { _code: string }; Returns: string }
       tier_price_for_signup: { Args: { _n: number }; Returns: number }
       user_company_id: { Args: { _user_id: string }; Returns: string }
@@ -525,7 +551,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "employee" | "member" | "super_admin"
+      app_role: "admin" | "employee" | "member" | "super_admin" | "manager"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -653,7 +679,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "employee", "member", "super_admin"],
+      app_role: ["admin", "employee", "member", "super_admin", "manager"],
     },
   },
 } as const
