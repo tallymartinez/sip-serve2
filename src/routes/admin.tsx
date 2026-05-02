@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ShieldOff, ShieldCheck, Pencil, Plus, Copy, Check, Trash2, KeyRound, UserPlus, X, Store, Pause, Play, Eye, EyeOff, Building2, Download, BarChart3, RefreshCw, Ticket, Power } from "lucide-react";
+import { ShieldOff, ShieldCheck, Pencil, Plus, Copy, Check, Trash2, KeyRound, UserPlus, X, Store, Pause, Play, Eye, EyeOff, Building2, Download, BarChart3, RefreshCw, Ticket, Power, Gift } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { defaultHomeContent, mergeHomeContent, type HomeContent, type ImageDisplay } from "@/lib/homeContent";
@@ -92,6 +92,8 @@ function Admin() {
   const [myCode, setMyCode] = useState("");
   const [myCodeEdit, setMyCodeEdit] = useState("");
   const [overrideUses, setOverrideUses] = useState<OverrideUse[]>([]);
+  const [compIds, setCompIds] = useState<Set<string>>(new Set());
+  const [compBusy, setCompBusy] = useState(false);
 
   const since = useMemo(() => rangeStart(range), [range]);
   const activeCompany = companies.find((c) => c.id === activeCompanyId) ?? null;
@@ -215,6 +217,18 @@ function Admin() {
         member_name: memberProfile?.full_name || memberProfile?.email || "—",
       };
     }));
+
+    // Comp memberships (super admin only — RLS will return only own-rows for non-super-admins)
+    const memberIds = (pRes.data ?? []).map((p) => p.id);
+    if (memberIds.length > 0) {
+      const { data: comps } = await supabase
+        .from("comp_memberships")
+        .select("user_id")
+        .in("user_id", memberIds);
+      setCompIds(new Set((comps ?? []).map((c) => c.user_id)));
+    } else {
+      setCompIds(new Set());
+    }
   }
 
   useEffect(() => { if (isAdmin && activeCompanyId) loadAll(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [isAdmin, activeCompanyId, since]);
@@ -382,6 +396,88 @@ function Admin() {
     loadAll();
   }
 
+  // ===== Comp membership (super admin only) =====
+  async function toggleComp(m: MemberRow) {
+    if (!user) return;
+    const isComped = compIds.has(m.id);
+    if (isComped) {
+      if (!confirm(`Revoke free membership for ${m.email}? They will be marked inactive.`)) return;
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+        supabase.from("comp_memberships").delete().eq("user_id", m.id),
+        supabase.from("profiles").update({ subscription_status: "inactive" }).eq("id", m.id),
+      ]);
+      if (e1 || e2) return toast.error((e1 ?? e2)!.message);
+      toast.success("Comp membership revoked");
+    } else {
+      const note = prompt(`Grant free membership to ${m.email}? Optional note:`, "") ?? null;
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+        supabase.from("comp_memberships").insert({ user_id: m.id, granted_by: user.id, note: note || null }),
+        supabase.from("profiles").update({
+          subscription_status: "active",
+          subscription_started_at: new Date().toISOString(),
+        }).eq("id", m.id),
+      ]);
+      if (e1 || e2) return toast.error((e1 ?? e2)!.message);
+      toast.success("Free membership granted");
+    }
+    loadAll();
+  }
+
+  async function createCompMember(form: FormData) {
+    if (!user) return;
+    const email = String(form.get("comp_email") ?? "").trim().toLowerCase();
+    const full_name = String(form.get("comp_name") ?? "").trim();
+    const phone = String(form.get("comp_phone") ?? "").trim();
+    const note = String(form.get("comp_note") ?? "").trim();
+    if (!email || !full_name) return toast.error("Name and email required");
+    setCompBusy(true);
+    try {
+      // Check if a profile already exists for that email
+      const { data: existingId } = await supabase.rpc("find_user_id_by_email", { _email: email });
+      let uid = existingId as string | null;
+
+      if (!uid) {
+        // Sign them up via auth (they'll need to verify email / set password later via password reset)
+        const tempPassword = crypto.randomUUID().replace(/-/g, "") + "Aa1!";
+        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+          email,
+          password: tempPassword,
+          options: {
+            emailRedirectTo: `${window.location.origin}/dashboard`,
+            data: { full_name, phone },
+          },
+        });
+        if (signUpErr) { toast.error(signUpErr.message); return; }
+        uid = signUpData.user?.id ?? null;
+        if (!uid) { toast.error("Could not create account"); return; }
+      }
+
+      // Make sure profile is in this company and active
+      const { error: pErr } = await supabase
+        .from("profiles")
+        .update({
+          subscription_status: "active",
+          subscription_started_at: new Date().toISOString(),
+          full_name,
+          phone: phone || null,
+          company_id: activeCompanyId,
+        })
+        .eq("id", uid);
+      if (pErr) { toast.error(pErr.message); return; }
+
+      // Insert (or upsert) comp record
+      const { error: cErr } = await supabase
+        .from("comp_memberships")
+        .upsert({ user_id: uid, granted_by: user.id, note: note || null }, { onConflict: "user_id" });
+      if (cErr) { toast.error(cErr.message); return; }
+
+      toast.success(`Free membership created for ${email}. Ask them to use "Forgot password" to set their password.`);
+      loadAll();
+    } finally {
+      setCompBusy(false);
+    }
+  }
+
   async function saveMyCode() {
     if (!user) return;
     const code = myCodeEdit.trim();
@@ -461,6 +557,25 @@ function Admin() {
 
         {/* ===== Members ===== */}
         <TabsContent value="members" className="mt-4">
+          {isSuperAdmin && (
+            <form
+              onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); createCompMember(fd).then(() => e.currentTarget.reset()); }}
+              className="mb-4 rounded-xl border border-border/60 bg-card p-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]"
+            >
+              <div className="lg:col-span-5 flex items-center gap-2">
+                <Gift className="h-5 w-5 text-primary-glow" />
+                <h3 className="font-display text-lg">Create a free (comp) membership</h3>
+              </div>
+              <div><Label htmlFor="comp_name">Full name</Label><Input id="comp_name" name="comp_name" required /></div>
+              <div><Label htmlFor="comp_email">Email</Label><Input id="comp_email" name="comp_email" type="email" required /></div>
+              <div><Label htmlFor="comp_phone">Phone (optional)</Label><Input id="comp_phone" name="comp_phone" type="tel" /></div>
+              <div><Label htmlFor="comp_note">Note (optional)</Label><Input id="comp_note" name="comp_note" placeholder="e.g. press, VIP" /></div>
+              <Button type="submit" disabled={compBusy} className="self-end bg-gradient-primary"><Gift className="h-4 w-4 mr-1" />{compBusy ? "Creating…" : "Grant free membership"}</Button>
+              <p className="lg:col-span-5 text-xs text-muted-foreground">
+                If the email already has an account, that user is comped in this company. New accounts can sign in by using "Forgot password" to set their own password.
+              </p>
+            </form>
+          )}
           <div className="rounded-xl border border-border/60 bg-card overflow-x-auto">
             <Table>
               <TableHeader>
@@ -477,9 +592,14 @@ function Admin() {
                     <TableCell className="text-muted-foreground">{m.email}</TableCell>
                     <TableCell className="text-muted-foreground">{m.phone ?? "—"}</TableCell>
                     <TableCell>
-                      <Badge className={m.subscription_status === "active" ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"}>
-                        {m.subscription_status}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge className={m.subscription_status === "active" ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"}>
+                          {m.subscription_status}
+                        </Badge>
+                        {compIds.has(m.id) && (
+                          <Badge variant="outline" className="border-primary-glow/60 text-primary-glow"><Gift className="h-3 w-3 mr-1" />Comp</Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">{m.drinks}</TableCell>
                     <TableCell className="text-right space-x-2">
@@ -487,6 +607,16 @@ function Admin() {
                       <Button size="sm" variant="outline" onClick={() => toggleStatus(m)}>
                         {m.subscription_status === "active" ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
                       </Button>
+                      {isSuperAdmin && (
+                        <Button
+                          size="sm"
+                          variant={compIds.has(m.id) ? "default" : "outline"}
+                          onClick={() => toggleComp(m)}
+                          title={compIds.has(m.id) ? "Revoke free membership" : "Grant free membership"}
+                        >
+                          <Gift className="h-4 w-4" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

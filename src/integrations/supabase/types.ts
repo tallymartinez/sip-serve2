@@ -32,6 +32,30 @@ export type Database = {
         }
         Relationships: []
       }
+      comp_memberships: {
+        Row: {
+          granted_at: string
+          granted_by: string
+          id: string
+          note: string | null
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by: string
+          id?: string
+          note?: string | null
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string
+          id?: string
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       companies: {
         Row: {
           active: boolean
