@@ -453,6 +453,7 @@ function Admin() {
           <TabsTrigger value="employees">Servers</TabsTrigger>
           <TabsTrigger value="venues">Venues</TabsTrigger>
           <TabsTrigger value="admins">Admins</TabsTrigger>
+          {isSuperAdmin && <TabsTrigger value="managers">Managers</TabsTrigger>}
           <TabsTrigger value="referrals">Referrals</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
           <TabsTrigger value="home">Home page</TabsTrigger>
