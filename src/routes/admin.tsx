@@ -396,6 +396,88 @@ function Admin() {
     loadAll();
   }
 
+  // ===== Comp membership (super admin only) =====
+  async function toggleComp(m: MemberRow) {
+    if (!user) return;
+    const isComped = compIds.has(m.id);
+    if (isComped) {
+      if (!confirm(`Revoke free membership for ${m.email}? They will be marked inactive.`)) return;
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+        supabase.from("comp_memberships").delete().eq("user_id", m.id),
+        supabase.from("profiles").update({ subscription_status: "inactive" }).eq("id", m.id),
+      ]);
+      if (e1 || e2) return toast.error((e1 ?? e2)!.message);
+      toast.success("Comp membership revoked");
+    } else {
+      const note = prompt(`Grant free membership to ${m.email}? Optional note:`, "") ?? null;
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+        supabase.from("comp_memberships").insert({ user_id: m.id, granted_by: user.id, note: note || null }),
+        supabase.from("profiles").update({
+          subscription_status: "active",
+          subscription_started_at: new Date().toISOString(),
+        }).eq("id", m.id),
+      ]);
+      if (e1 || e2) return toast.error((e1 ?? e2)!.message);
+      toast.success("Free membership granted");
+    }
+    loadAll();
+  }
+
+  async function createCompMember(form: FormData) {
+    if (!user) return;
+    const email = String(form.get("comp_email") ?? "").trim().toLowerCase();
+    const full_name = String(form.get("comp_name") ?? "").trim();
+    const phone = String(form.get("comp_phone") ?? "").trim();
+    const note = String(form.get("comp_note") ?? "").trim();
+    if (!email || !full_name) return toast.error("Name and email required");
+    setCompBusy(true);
+    try {
+      // Check if a profile already exists for that email
+      const { data: existingId } = await supabase.rpc("find_user_id_by_email", { _email: email });
+      let uid = existingId as string | null;
+
+      if (!uid) {
+        // Sign them up via auth (they'll need to verify email / set password later via password reset)
+        const tempPassword = crypto.randomUUID().replace(/-/g, "") + "Aa1!";
+        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+          email,
+          password: tempPassword,
+          options: {
+            emailRedirectTo: `${window.location.origin}/dashboard`,
+            data: { full_name, phone },
+          },
+        });
+        if (signUpErr) { toast.error(signUpErr.message); return; }
+        uid = signUpData.user?.id ?? null;
+        if (!uid) { toast.error("Could not create account"); return; }
+      }
+
+      // Make sure profile is in this company and active
+      const { error: pErr } = await supabase
+        .from("profiles")
+        .update({
+          subscription_status: "active",
+          subscription_started_at: new Date().toISOString(),
+          full_name,
+          phone: phone || null,
+          company_id: activeCompanyId,
+        })
+        .eq("id", uid);
+      if (pErr) { toast.error(pErr.message); return; }
+
+      // Insert (or upsert) comp record
+      const { error: cErr } = await supabase
+        .from("comp_memberships")
+        .upsert({ user_id: uid, granted_by: user.id, note: note || null }, { onConflict: "user_id" });
+      if (cErr) { toast.error(cErr.message); return; }
+
+      toast.success(`Free membership created for ${email}. Ask them to use "Forgot password" to set their password.`);
+      loadAll();
+    } finally {
+      setCompBusy(false);
+    }
+  }
+
   async function saveMyCode() {
     if (!user) return;
     const code = myCodeEdit.trim();
