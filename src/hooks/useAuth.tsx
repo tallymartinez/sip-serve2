@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-type Role = "admin" | "employee" | "member";
+type Role = "admin" | "employee" | "member" | "manager" | "super_admin";
 
 interface AuthCtx {
   user: User | null;
@@ -12,6 +12,8 @@ interface AuthCtx {
   isAdmin: boolean;
   isEmployee: boolean;
   isMember: boolean;
+  isManager: boolean;
+  isSuperAdmin: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -57,9 +59,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider
       value={{
         user, session, roles, loading,
-        isAdmin: roles.includes("admin"),
-        isEmployee: roles.includes("employee") || roles.includes("admin"),
+        isAdmin: roles.includes("admin") || roles.includes("super_admin"),
+        isEmployee: roles.includes("employee") || roles.includes("admin") || roles.includes("super_admin"),
         isMember: roles.includes("member"),
+        isManager: roles.includes("manager"),
+        isSuperAdmin: roles.includes("super_admin"),
         signOut,
       }}
     >
