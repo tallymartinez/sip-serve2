@@ -557,6 +557,25 @@ function Admin() {
 
         {/* ===== Members ===== */}
         <TabsContent value="members" className="mt-4">
+          {isSuperAdmin && (
+            <form
+              onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); createCompMember(fd).then(() => e.currentTarget.reset()); }}
+              className="mb-4 rounded-xl border border-border/60 bg-card p-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]"
+            >
+              <div className="lg:col-span-5 flex items-center gap-2">
+                <Gift className="h-5 w-5 text-primary-glow" />
+                <h3 className="font-display text-lg">Create a free (comp) membership</h3>
+              </div>
+              <div><Label htmlFor="comp_name">Full name</Label><Input id="comp_name" name="comp_name" required /></div>
+              <div><Label htmlFor="comp_email">Email</Label><Input id="comp_email" name="comp_email" type="email" required /></div>
+              <div><Label htmlFor="comp_phone">Phone (optional)</Label><Input id="comp_phone" name="comp_phone" type="tel" /></div>
+              <div><Label htmlFor="comp_note">Note (optional)</Label><Input id="comp_note" name="comp_note" placeholder="e.g. press, VIP" /></div>
+              <Button type="submit" disabled={compBusy} className="self-end bg-gradient-primary"><Gift className="h-4 w-4 mr-1" />{compBusy ? "Creating…" : "Grant free membership"}</Button>
+              <p className="lg:col-span-5 text-xs text-muted-foreground">
+                If the email already has an account, that user is comped in this company. New accounts can sign in by using "Forgot password" to set their own password.
+              </p>
+            </form>
+          )}
           <div className="rounded-xl border border-border/60 bg-card overflow-x-auto">
             <Table>
               <TableHeader>
@@ -573,9 +592,14 @@ function Admin() {
                     <TableCell className="text-muted-foreground">{m.email}</TableCell>
                     <TableCell className="text-muted-foreground">{m.phone ?? "—"}</TableCell>
                     <TableCell>
-                      <Badge className={m.subscription_status === "active" ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"}>
-                        {m.subscription_status}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge className={m.subscription_status === "active" ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"}>
+                          {m.subscription_status}
+                        </Badge>
+                        {compIds.has(m.id) && (
+                          <Badge variant="outline" className="border-primary-glow/60 text-primary-glow"><Gift className="h-3 w-3 mr-1" />Comp</Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">{m.drinks}</TableCell>
                     <TableCell className="text-right space-x-2">
@@ -583,6 +607,16 @@ function Admin() {
                       <Button size="sm" variant="outline" onClick={() => toggleStatus(m)}>
                         {m.subscription_status === "active" ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
                       </Button>
+                      {isSuperAdmin && (
+                        <Button
+                          size="sm"
+                          variant={compIds.has(m.id) ? "default" : "outline"}
+                          onClick={() => toggleComp(m)}
+                          title={compIds.has(m.id) ? "Revoke free membership" : "Grant free membership"}
+                        >
+                          <Gift className="h-4 w-4" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
