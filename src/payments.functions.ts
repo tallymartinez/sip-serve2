@@ -28,7 +28,6 @@ export const createMembershipCheckout = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const user = await getUserFromToken(data.accessToken);
 
-    // Block if already an active member.
     const { data: existing } = await supabaseAdmin
       .from("subscriptions")
       .select("status, current_period_end")

@@ -1,6 +1,6 @@
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
 import { getStripe, getStripeEnvironment } from "@/lib/stripe";
-import { createMembershipCheckout } from "@/server/payments.functions";
+import { createMembershipCheckout } from "@/payments.functions";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Props {

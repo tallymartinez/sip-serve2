@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { createBillingPortalSession } from "@/server/payments.functions";
+import { createBillingPortalSession } from "@/payments.functions";
 import { StripeMembershipCheckout } from "@/components/StripeEmbeddedCheckout";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { Button } from "@/components/ui/button";
