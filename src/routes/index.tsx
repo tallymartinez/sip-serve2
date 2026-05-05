@@ -1,10 +1,13 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { GlassWater, Sparkles, Star, ChevronDown } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { GlassWater, Sparkles, Star } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { defaultHomeContent, mergeHomeContent, type HomeContent, type CocktailSection } from "@/lib/homeContent";
+import { defaultHomeContent, getStoredDemoHomeContent, mergeHomeContent, type HomeContent } from "@/lib/homeContent";
+import { DEMO_COMPANIES, isDemoMode } from "@/lib/demo";
+import { buildFallbackDrinkCards, mapDrinkCards, statusBadge, type Company, type DisplayDrinkCard, type DrinkCardRow } from "@/lib/drinkCards";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -18,34 +21,24 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-function Section({ section }: { section: CocktailSection }) {
-  return (
-    <div>
-      <h3 className="font-display text-2xl md:text-3xl text-primary-glow uppercase tracking-wider text-center">{section.heading}</h3>
-      {section.subtitle && (
-        <p className="mt-2 text-center text-xs uppercase tracking-[0.2em] text-muted-foreground">{section.subtitle}</p>
-      )}
-      <div className="mt-6 grid gap-5 md:grid-cols-2">
-        {section.items.map((c) => (
-          <div key={c.name} className="rounded-xl border border-border/60 bg-card/80 p-5 shadow-card">
-            <div className="flex items-baseline justify-between gap-3">
-              <h4 className="font-display text-xl">{c.name}</h4>
-              {c.price && <span className="text-sm text-primary-glow font-medium shrink-0">${c.price}</span>}
-            </div>
-            {c.notes && <p className="mt-2 text-sm text-muted-foreground">{c.notes}</p>}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+function getSelectedDrinkMap(content: HomeContent, companyIds: string[]) {
+  const scoped = content.selectedDrinkCardIdsByCompany ?? {};
+  const hasScopedSelection = Object.keys(scoped).length > 0;
+  if (hasScopedSelection) return scoped;
+
+  const legacyIds = content.selectedDrinkCardIds ?? [];
+  if (legacyIds.length === 0 || companyIds.length === 0) return {};
+
+  return { [companyIds[0]]: legacyIds };
 }
 
 function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [content, setContent] = useState<HomeContent>(defaultHomeContent);
-  const [cocktailsOpen, setCocktailsOpen] = useState(false);
-  const [supperOpen, setSupperOpen] = useState(false);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [drinkCards, setDrinkCards] = useState<DisplayDrinkCard[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState("");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -55,11 +48,55 @@ function Home() {
 
   useEffect(() => {
     if (!user) return;
-    (supabase.from("home_content" as never).select("data").eq("id" as never, "default" as never).maybeSingle() as unknown as Promise<{ data: { data: Partial<HomeContent> } | null }>)
-      .then(({ data }) => {
-        if (data?.data) setContent(mergeHomeContent(data.data));
-      });
+    if (isDemoMode) {
+      const demoCompanies = DEMO_COMPANIES.map((company) => ({ ...company }) as Company);
+      setCompanies(demoCompanies);
+      setDrinkCards(demoCompanies.flatMap((company) => buildFallbackDrinkCards(company.id)));
+      setContent(getStoredDemoHomeContent());
+      return;
+    }
+    Promise.all([
+      supabase.from("home_content" as never).select("data").eq("id" as never, "default" as never).maybeSingle() as unknown as Promise<{ data: { data: Partial<HomeContent> } | null }>,
+      supabase.from("companies").select("*").eq("active", true).order("name"),
+      supabase.from("drink_cards").select("*").neq("status", "inactive").order("category").order("sort_order").order("name"),
+    ]).then(([homeResult, companyResult, drinkResult]) => {
+      if (homeResult.data?.data) setContent(mergeHomeContent(homeResult.data.data));
+      const nextCompanies = (companyResult.data ?? []) as Company[];
+      setCompanies(nextCompanies);
+      setDrinkCards(mapDrinkCards(nextCompanies, (drinkResult.data ?? []) as DrinkCardRow[]));
+    });
   }, [user]);
+
+  const featuredCompanies = useMemo(() => {
+    const companyIds = companies.map((company) => company.id);
+    const selectionMap = getSelectedDrinkMap(content, companyIds);
+    const hasScopedSelections = Object.values(selectionMap).some((ids) => ids.length > 0);
+
+    return companies
+      .map((company) => {
+        const allCards = drinkCards.filter((card) => card.company_id === company.id && card.status !== "inactive");
+        const selectedIds = selectionMap[company.id] ?? [];
+        const cards = hasScopedSelections
+          ? allCards.filter((card) => selectedIds.includes(card.id))
+          : allCards;
+
+        return { company, cards };
+      })
+      .filter((section) => section.cards.length > 0);
+  }, [companies, content, drinkCards]);
+
+  useEffect(() => {
+    if (featuredCompanies.length === 0) {
+      setSelectedCompanyId("");
+      return;
+    }
+
+    if (!featuredCompanies.some(({ company }) => company.id === selectedCompanyId)) {
+      setSelectedCompanyId(featuredCompanies[0].company.id);
+    }
+  }, [featuredCompanies, selectedCompanyId]);
+
+  const activeCompanySection = featuredCompanies.find(({ company }) => company.id === selectedCompanyId) ?? null;
 
   if (loading || !user) {
     return (
@@ -150,26 +187,92 @@ function Home() {
             <h2 className="mt-3 font-display text-4xl md:text-5xl">Cocktails</h2>
             <p className="mt-3 text-muted-foreground">{content.cocktailsIntro}</p>
           </div>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Button size="lg" onClick={() => setCocktailsOpen((o) => !o)} className="bg-gradient-primary shadow-glow" aria-expanded={cocktailsOpen}>
-              Mercato Cocktails
-              <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${cocktailsOpen ? "rotate-180" : ""}`} />
-            </Button>
-            <Button size="lg" onClick={() => setSupperOpen((o) => !o)} variant="outline" aria-expanded={supperOpen}>
-              Supper Club Cocktails
-              <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${supperOpen ? "rotate-180" : ""}`} />
-            </Button>
+          <div className="mt-12 space-y-8">
+            {featuredCompanies.length > 1 && (
+              <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
+                <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Choose company</p>
+                <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+                  <SelectTrigger className="h-12 w-full rounded-full border-border/60 bg-card/70 px-5 text-base">
+                    <SelectValue placeholder="Select company" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {featuredCompanies.map(({ company }) => (
+                      <SelectItem key={company.id} value={company.id}>
+                        {company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {activeCompanySection && (
+              <section className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-4 px-1">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Company</p>
+                    <h3 className="mt-2 font-display text-3xl md:text-4xl">{activeCompanySection.company.name}</h3>
+                  </div>
+                  <div className="rounded-2xl border border-border/60 bg-card/70 px-5 py-4 shadow-card">
+                    <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Daily limit</p>
+                    <div className="mt-2 flex items-center gap-3">
+                      <GlassWater className="h-7 w-7 text-primary-glow" />
+                      <p className="font-display text-3xl">{activeCompanySection.company.daily_drink_limit}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {activeCompanySection.cards.map((card) => (
+                    <div
+                      key={card.id}
+                      className="group relative min-h-[440px] overflow-hidden rounded-3xl border border-border/60 bg-card text-left shadow-card"
+                    >
+                      {card.imageUrl ? (
+                        <img
+                          src={card.imageUrl}
+                          alt={card.name}
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 bg-muted" />
+                      )}
+                      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(12,6,7,0.18),rgba(12,6,7,0.45)_38%,rgba(12,6,7,0.78)_68%,rgba(12,6,7,0.96)_100%)]" />
+
+                      <div className="relative flex h-full min-h-[440px] flex-col justify-between p-5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex flex-wrap gap-2">
+                            {statusBadge(card.status)}
+                          </div>
+                        </div>
+
+                        <div className="mt-auto space-y-4">
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.25em] text-white/75">{card.category}</p>
+                            <h4 className="mt-2 font-display text-3xl text-white drop-shadow-[0_6px_24px_rgba(0,0,0,0.45)]">{card.name}</h4>
+                          </div>
+                          <p className="max-w-[28ch] text-sm leading-6 text-white/85 drop-shadow-[0_4px_18px_rgba(0,0,0,0.45)]">
+                            {card.description || "Select this drink to generate your member QR."}
+                          </p>
+                          <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-3">
+                            <span className="text-sm text-white/80">
+                              {card.price_label || (card.status === "included" ? "Included in membership" : "Visible on menu")}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {featuredCompanies.length === 0 && (
+              <div className="rounded-3xl border border-dashed border-border/60 bg-card p-6 text-center text-sm text-muted-foreground">
+                No front-page drink cards are selected yet.
+              </div>
+            )}
           </div>
-          {cocktailsOpen && (
-            <div className="mt-14 space-y-14 max-w-5xl mx-auto">
-              {content.cocktailSections.map((s) => <Section key={s.heading} section={s} />)}
-            </div>
-          )}
-          {supperOpen && (
-            <div className="mt-14 space-y-14 max-w-5xl mx-auto">
-              {content.supperClubSections.map((s) => <Section key={s.heading} section={s} />)}
-            </div>
-          )}
         </div>
       </section>
 

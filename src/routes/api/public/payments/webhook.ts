@@ -2,21 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { type StripeEnv, verifyWebhook } from "@/lib/stripe.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-function priceCentsForLookupKey(key: string | undefined | null): number | null {
-  if (key === "velvet_founding_monthly") return 8000;
-  if (key === "velvet_charter_monthly") return 9000;
-  if (key === "velvet_member_monthly") return 10000;
-  return null;
-}
-
-function tierLabelForKey(key: string | undefined | null): string {
-  if (key === "velvet_founding_monthly") return "Founding Member";
-  if (key === "velvet_charter_monthly") return "Charter Member";
-  return "Member";
-}
-
-async function activateMember(userId: string, priceId: string | null, signupNumber: number | null) {
-  const cents = priceCentsForLookupKey(priceId);
+async function activateMember(userId: string, cents: number | null, signupNumber: number | null) {
   await supabaseAdmin
     .from("profiles")
     .update({
@@ -26,11 +12,6 @@ async function activateMember(userId: string, priceId: string | null, signupNumb
       ...(signupNumber !== null && { signup_number: signupNumber }),
     })
     .eq("id", userId);
-
-  // Welcome email is sent via the transactional email infrastructure.
-  // Wired in once email setup completes — this is intentionally a no-op
-  // when the email queue/template aren't deployed yet.
-  void tierLabelForKey;
 }
 
 async function handleSubscriptionCreated(subscription: any, env: StripeEnv) {
@@ -41,7 +22,9 @@ async function handleSubscriptionCreated(subscription: any, env: StripeEnv) {
   }
 
   const item = subscription.items?.data?.[0];
-  const priceId = item?.price?.metadata?.lovable_external_id || item?.price?.id;
+  const priceId = subscription.metadata?.priceId || item?.price?.id || null;
+  const priceLookupKey = subscription.metadata?.priceLookupKey || item?.price?.lookup_key || null;
+  const priceCents = typeof item?.price?.unit_amount === "number" ? item.price.unit_amount : null;
   const productId = item?.price?.product;
   const periodStart = item?.current_period_start ?? subscription.current_period_start;
   const periodEnd = item?.current_period_end ?? subscription.current_period_end;
@@ -54,7 +37,7 @@ async function handleSubscriptionCreated(subscription: any, env: StripeEnv) {
       stripe_subscription_id: subscription.id,
       stripe_customer_id: subscription.customer,
       product_id: productId,
-      price_id: priceId,
+      price_id: priceLookupKey ?? priceId,
       status: subscription.status,
       current_period_start: periodStart ? new Date(periodStart * 1000).toISOString() : null,
       current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
@@ -65,13 +48,15 @@ async function handleSubscriptionCreated(subscription: any, env: StripeEnv) {
   );
 
   if (["active", "trialing"].includes(subscription.status)) {
-    await activateMember(userId, priceId, signupNumber);
+    await activateMember(userId, priceCents, signupNumber);
   }
 }
 
 async function handleSubscriptionUpdated(subscription: any, env: StripeEnv) {
   const item = subscription.items?.data?.[0];
-  const priceId = item?.price?.metadata?.lovable_external_id || item?.price?.id;
+  const priceId = subscription.metadata?.priceId || item?.price?.id || null;
+  const priceLookupKey = subscription.metadata?.priceLookupKey || item?.price?.lookup_key || null;
+  const priceCents = typeof item?.price?.unit_amount === "number" ? item.price.unit_amount : null;
   const productId = item?.price?.product;
   const periodStart = item?.current_period_start ?? subscription.current_period_start;
   const periodEnd = item?.current_period_end ?? subscription.current_period_end;
@@ -81,7 +66,7 @@ async function handleSubscriptionUpdated(subscription: any, env: StripeEnv) {
     .update({
       status: subscription.status,
       product_id: productId,
-      price_id: priceId,
+      price_id: priceLookupKey ?? priceId,
       current_period_start: periodStart ? new Date(periodStart * 1000).toISOString() : null,
       current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
       cancel_at_period_end: subscription.cancel_at_period_end || false,
@@ -90,8 +75,6 @@ async function handleSubscriptionUpdated(subscription: any, env: StripeEnv) {
     .eq("stripe_subscription_id", subscription.id)
     .eq("environment", env);
 
-  // Reflect status onto profile so the UI shows / hides the paywall correctly.
-  // Cancel-at-period-end stays "active" until period actually ends.
   const userId = subscription.metadata?.userId;
   if (userId) {
     const profileStatus =
@@ -102,9 +85,13 @@ async function handleSubscriptionUpdated(subscription: any, env: StripeEnv) {
           : subscription.status === "canceled"
             ? "cancelled"
             : subscription.status;
+
     await supabaseAdmin
       .from("profiles")
-      .update({ subscription_status: profileStatus })
+      .update({
+        subscription_status: profileStatus,
+        ...(priceCents !== null && { subscription_price_cents: priceCents }),
+      })
       .eq("id", userId);
   }
 }

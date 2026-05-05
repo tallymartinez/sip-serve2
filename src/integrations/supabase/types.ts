@@ -63,6 +63,7 @@ export type Database = {
           daily_drink_limit: number
           id: string
           name: string
+          owner_user_id: string | null
           paused_message: string | null
           redemptions_paused: boolean
           updated_at: string
@@ -73,6 +74,7 @@ export type Database = {
           daily_drink_limit?: number
           id?: string
           name: string
+          owner_user_id?: string | null
           paused_message?: string | null
           redemptions_paused?: boolean
           updated_at?: string
@@ -83,11 +85,62 @@ export type Database = {
           daily_drink_limit?: number
           id?: string
           name?: string
+          owner_user_id?: string | null
           paused_message?: string | null
           redemptions_paused?: boolean
           updated_at?: string
         }
         Relationships: []
+      }
+      drink_cards: {
+        Row: {
+          category: string
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          name: string
+          price_label: string | null
+          sort_order: number
+          status: Database["public"]["Enums"]["drink_card_status"]
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name: string
+          price_label?: string | null
+          sort_order?: number
+          status?: Database["public"]["Enums"]["drink_card_status"]
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          price_label?: string | null
+          sort_order?: number
+          status?: Database["public"]["Enums"]["drink_card_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drink_cards_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       employees: {
         Row: {
@@ -258,29 +311,35 @@ export type Database = {
       }
       redemptions: {
         Row: {
+          drink_name: string | null
           drinks_redeemed: number
           employee_id: string | null
           id: string
           redeemed_at: string
           redeemed_date: string
+          user_role_id: string | null
           user_id: string
           venue_id: string | null
         }
         Insert: {
+          drink_name?: string | null
           drinks_redeemed: number
           employee_id?: string | null
           id?: string
           redeemed_at?: string
           redeemed_date?: string
+          user_role_id?: string | null
           user_id: string
           venue_id?: string | null
         }
         Update: {
+          drink_name?: string | null
           drinks_redeemed?: number
           employee_id?: string | null
           id?: string
           redeemed_at?: string
           redeemed_date?: string
+          user_role_id?: string | null
           user_id?: string
           venue_id?: string | null
         }
@@ -297,6 +356,13 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "redemptions_user_role_id_fkey"
+            columns: ["user_role_id"]
+            isOneToOne: false
+            referencedRelation: "user_roles"
             referencedColumns: ["id"]
           },
           {
@@ -438,25 +504,37 @@ export type Database = {
       }
       user_roles: {
         Row: {
+          active: boolean
           company_id: string | null
           created_at: string
           id: string
           role: Database["public"]["Enums"]["app_role"]
+          server_code: string | null
+          updated_at: string
           user_id: string
+          venue_id: string | null
         }
         Insert: {
+          active?: boolean
           company_id?: string | null
           created_at?: string
           id?: string
           role: Database["public"]["Enums"]["app_role"]
+          server_code?: string | null
+          updated_at?: string
           user_id: string
+          venue_id?: string | null
         }
         Update: {
+          active?: boolean
           company_id?: string | null
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          server_code?: string | null
+          updated_at?: string
           user_id?: string
+          venue_id?: string | null
         }
         Relationships: [
           {
@@ -464,6 +542,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_roles_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
             referencedColumns: ["id"]
           },
         ]
@@ -530,6 +615,10 @@ export type Database = {
         }[]
       }
       drinks_remaining_today: { Args: { _user_id: string }; Returns: number }
+      is_effective_company_admin: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
       find_user_id_by_email: { Args: { _email: string }; Returns: string }
       has_active_subscription: {
         Args: { check_env?: string; user_uuid: string }
@@ -575,7 +664,14 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "employee" | "member" | "super_admin" | "manager"
+      app_role:
+        | "admin"
+        | "employee"
+        | "member"
+        | "super_admin"
+        | "manager"
+        | "server"
+      drink_card_status: "included" | "not_included" | "inactive"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -703,7 +799,8 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "employee", "member", "super_admin", "manager"],
+      app_role: ["admin", "employee", "member", "super_admin", "manager", "server"],
+      drink_card_status: ["included", "not_included", "inactive"],
     },
   },
 } as const

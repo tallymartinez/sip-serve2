@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { GlassWater, Sparkles, QrCode, ShieldCheck, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { DEMO_TIER, isDemoMode } from "@/lib/demo";
 
 export const Route = createFileRoute("/membership")({ component: Index });
 
@@ -17,6 +18,10 @@ function Index() {
   const [tier, setTier] = useState<TierInfo | null>(null);
 
   useEffect(() => {
+    if (isDemoMode) {
+      setTier(DEMO_TIER);
+      return;
+    }
     supabase.rpc("current_tier_info").then(({ data }) => {
       if (Array.isArray(data) && data.length) setTier(data[0] as TierInfo);
     });

@@ -1,13 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { type StripeEnv, createStripeClient } from "@/lib/stripe.server";
+import { getLookupKeyForSignup } from "@/lib/stripeCatalog";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-
-function tierPriceIdFor(signupNumber: number): string {
-  if (signupNumber <= 100) return "velvet_founding_monthly";
-  if (signupNumber <= 200) return "velvet_charter_monthly";
-  return "velvet_member_monthly";
-}
 
 async function getUserFromToken(accessToken: string) {
   const sb = createClient(
@@ -56,29 +51,31 @@ export const createMembershipCheckout = createServerFn({ method: "POST" })
 
     if (!profile) throw new Error("Profile not found");
 
-    const priceId = tierPriceIdFor(profile.signup_number ?? 1);
+    const priceLookupKey = getLookupKeyForSignup(profile.signup_number ?? 1);
 
     const stripe = createStripeClient(data.environment);
-    const prices = await stripe.prices.list({ lookup_keys: [priceId] });
-    if (!prices.data.length) throw new Error(`Price not found: ${priceId}`);
+    const prices = await stripe.prices.list({ lookup_keys: [priceLookupKey] });
+    if (!prices.data.length) throw new Error(`Price not found for lookup key: ${priceLookupKey}`);
     const stripePrice = prices.data[0];
 
     const session = await stripe.checkout.sessions.create({
       line_items: [{ price: stripePrice.id, quantity: 1 }],
       mode: "subscription",
-      ui_mode: "embedded_page",
+      ui_mode: "embedded",
+      redirect_on_completion: "if_required",
       return_url: data.returnUrl,
       customer_email: profile.email ?? user.email ?? undefined,
-      managed_payments: { enabled: true } as any,
       metadata: {
         userId: user.id,
-        priceId,
+        priceId: stripePrice.id,
+        priceLookupKey,
         signupNumber: String(profile.signup_number ?? ""),
       },
       subscription_data: {
         metadata: {
           userId: user.id,
-          priceId,
+          priceId: stripePrice.id,
+          priceLookupKey,
           signupNumber: String(profile.signup_number ?? ""),
         },
       },

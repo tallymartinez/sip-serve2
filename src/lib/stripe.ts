@@ -9,8 +9,8 @@ let stripePromise: Promise<Stripe | null> | null = null;
 
 export function getStripe(): Promise<Stripe | null> {
   if (!stripePromise) {
-    if (!clientToken) {
-      throw new Error("VITE_PAYMENTS_CLIENT_TOKEN is not set");
+    if (!clientToken || clientToken.includes("_xxx")) {
+      throw new Error("VITE_PAYMENTS_CLIENT_TOKEN is not set to a real Stripe publishable key");
     }
     stripePromise = loadStripe(clientToken);
   }

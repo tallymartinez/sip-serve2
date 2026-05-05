@@ -14,6 +14,8 @@ export interface HomeContent {
   welcomeSignoff: string;
   cocktailsIntro: string;
   cocktailSections: CocktailSection[];
+  selectedDrinkCardIds?: string[];
+  selectedDrinkCardIdsByCompany?: Record<string, string[]>;
   supperClubSections: CocktailSection[];
   closingHeading: string;
   closingBody: string;
@@ -73,6 +75,8 @@ export const defaultHomeContent: HomeContent = {
       { name: "Casa Dragones Blanco Margarita", notes: "", price: "26" },
     ]},
   ],
+  selectedDrinkCardIds: [],
+  selectedDrinkCardIdsByCompany: {},
   supperClubSections: [
     { heading: "Supper Club Signatures", subtitle: "$18", items: [
       { name: "Red Light District", notes: "nolet's silver · rhubarb bitters · lemon · yuzu · pink peppercorn syrup" },
@@ -99,7 +103,58 @@ export const defaultHomeContent: HomeContent = {
   closingImageUrl: "",
 };
 
+const DEMO_HOME_CONTENT_KEY = "ovwc:demo-home-content";
+
+function normalizeDemoDrinkCardId(id: string) {
+  const match = /^demo-drink-(.+)-(\d+)$/.exec(id);
+  if (!match) return id;
+  return `fallback-${match[1]}-${match[2]}`;
+}
+
+function normalizeSelectionMap(selectionMap?: Record<string, string[]>) {
+  if (!selectionMap) return {};
+  return Object.fromEntries(
+    Object.entries(selectionMap).map(([companyId, ids]) => [
+      companyId,
+      Array.from(new Set((ids ?? []).map((id) => normalizeDemoDrinkCardId(id)))),
+    ]),
+  );
+}
+
+function normalizeSelectionList(ids?: string[]) {
+  return Array.from(new Set((ids ?? []).map((id) => normalizeDemoDrinkCardId(id))));
+}
+
 export function mergeHomeContent(partial: Partial<HomeContent> | null | undefined): HomeContent {
   if (!partial || typeof partial !== "object") return defaultHomeContent;
-  return { ...defaultHomeContent, ...partial };
+  return {
+    ...defaultHomeContent,
+    ...partial,
+    selectedDrinkCardIds: normalizeSelectionList(partial.selectedDrinkCardIds),
+    selectedDrinkCardIdsByCompany: {
+      ...defaultHomeContent.selectedDrinkCardIdsByCompany,
+      ...normalizeSelectionMap(partial.selectedDrinkCardIdsByCompany),
+    },
+  };
+}
+
+export function getStoredDemoHomeContent(): HomeContent {
+  if (typeof window === "undefined") return defaultHomeContent;
+  try {
+    const raw = window.localStorage.getItem(DEMO_HOME_CONTENT_KEY);
+    if (!raw) return defaultHomeContent;
+    return mergeHomeContent(JSON.parse(raw) as Partial<HomeContent>);
+  } catch {
+    return defaultHomeContent;
+  }
+}
+
+export function setStoredDemoHomeContent(content: HomeContent) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(DEMO_HOME_CONTENT_KEY, JSON.stringify(content));
+}
+
+export function clearStoredDemoHomeContent() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(DEMO_HOME_CONTENT_KEY);
 }

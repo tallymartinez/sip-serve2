@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { isDemoMode, setStoredDemoAuth } from "@/lib/demo";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/signup")({ component: Signup });
@@ -33,7 +34,13 @@ const schema = z.object({
   referral_code: z.string().trim().max(40).optional(),
 });
 
-type ValidatedCode = { id: string; code: string; discount_type: "fixed" | "percent" | null; discount_value: number | null; assigned_to_name: string | null };
+type ValidatedCode = {
+  id: string;
+  code: string;
+  discount_type: "fixed" | "percent" | null;
+  discount_value: number | null;
+  assigned_to_name: string | null;
+};
 
 function Signup() {
   const router = useRouter();
@@ -45,14 +52,37 @@ function Signup() {
 
   async function checkCode() {
     const code = refInput.trim();
-    setRefError(null); setRefValid(null);
+    setRefError(null);
+    setRefValid(null);
     if (!code) return;
+
+    if (isDemoMode) {
+      setRefValidating(true);
+      setTimeout(() => {
+        setRefValidating(false);
+        setRefValid({
+          id: "demo-code",
+          code,
+          discount_type: "percent",
+          discount_value: 10,
+          assigned_to_name: "Demo Referrer",
+        });
+      }, 250);
+      return;
+    }
+
     setRefValidating(true);
     const { data, error } = await supabase.rpc("validate_referral_code", { _code: code });
     setRefValidating(false);
-    if (error) { setRefError("Could not check code"); return; }
+    if (error) {
+      setRefError("Could not check code");
+      return;
+    }
     const row = (data ?? [])[0] as ValidatedCode | undefined;
-    if (!row) { setRefError("Invalid, expired, or fully used code"); return; }
+    if (!row) {
+      setRefError("Invalid, expired, or fully used code");
+      return;
+    }
     setRefValid(row);
   }
 
@@ -61,6 +91,18 @@ function Signup() {
     const fd = new FormData(e.currentTarget);
     const parsed = schema.safeParse(Object.fromEntries(fd));
     if (!parsed.success) return toast.error(parsed.error.issues[0].message);
+
+    if (isDemoMode) {
+      setStoredDemoAuth({
+        role: "member",
+        email: parsed.data.email.toLowerCase(),
+        fullName: parsed.data.full_name,
+      });
+      toast.success("Demo member created.");
+      router.navigate({ to: "/dashboard" });
+      return;
+    }
+
     setBusy(true);
     const { data, error } = await supabase.auth.signUp({
       email: parsed.data.email,
@@ -74,14 +116,18 @@ function Signup() {
         },
       },
     });
-    if (error) return toast.error(error.message);
-    // Try to redeem the referral code if user has an active session
+    if (error) {
+      setBusy(false);
+      return toast.error(error.message);
+    }
+
     const codeToRedeem = parsed.data.referral_code?.trim();
     if (codeToRedeem && data.session) {
       const { error: rErr } = await supabase.rpc("redeem_referral_code", { _code: codeToRedeem });
-      if (rErr) toast.warning(`Account created, but referral code couldn't be applied: ${rErr.message}`);
+      if (rErr) toast.warning(`Account created, but referral code could not be applied: ${rErr.message}`);
       else toast.success("Referral code applied.");
     }
+
     setBusy(false);
     if (data.session) {
       toast.success("Welcome to Velvet Lounge.");
@@ -89,12 +135,15 @@ function Signup() {
     } else {
       toast.success(
         codeToRedeem
-          ? "Account created. Check your email to confirm, then sign in — your referral code will be applied on first login."
-          : "Account created. Check your email to confirm, then sign in."
+          ? "Account created. Check your email to confirm, then sign in - your referral code will be applied on first login."
+          : "Account created. Check your email to confirm, then sign in.",
       );
-      // Stash code so we can apply it on first login
       if (codeToRedeem) {
-        try { localStorage.setItem("pending_referral_code", codeToRedeem); } catch { /* noop */ }
+        try {
+          localStorage.setItem("pending_referral_code", codeToRedeem);
+        } catch {
+          // noop
+        }
       }
       router.navigate({ to: "/login" });
     }
@@ -104,7 +153,9 @@ function Signup() {
     <main className="container mx-auto flex min-h-[80vh] max-w-md items-center px-4 py-16">
       <form onSubmit={onSubmit} className="w-full rounded-xl border border-border/60 bg-card p-8 shadow-velvet">
         <h1 className="font-display text-3xl">Become a member</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Two cocktails a day. Every day.</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {isDemoMode ? "Demo mode is on. Creating an account signs you straight into a local mock member." : "Two cocktails a day. Every day."}
+        </p>
         <div className="mt-6 space-y-4">
           <div><Label htmlFor="full_name">Full name</Label><Input id="full_name" name="full_name" required /></div>
           <div><Label htmlFor="email">Email</Label><Input id="email" name="email" type="email" required autoComplete="email" /></div>
@@ -122,29 +173,33 @@ function Signup() {
                 id="referral_code"
                 name="referral_code"
                 value={refInput}
-                onChange={(e) => { setRefInput(e.target.value); setRefValid(null); setRefError(null); }}
+                onChange={(e) => {
+                  setRefInput(e.target.value);
+                  setRefValid(null);
+                  setRefError(null);
+                }}
                 placeholder="ENTER CODE"
                 maxLength={40}
                 autoCapitalize="characters"
                 className="uppercase tracking-widest"
               />
               <Button type="button" variant="outline" onClick={checkCode} disabled={!refInput.trim() || refValidating}>
-                {refValidating ? "Checking…" : "Apply"}
+                {refValidating ? "Checking..." : "Apply"}
               </Button>
             </div>
             {refValid && (
               <p className="mt-1 text-xs text-success">
-                ✓ {refValid.discount_type === "percent" && refValid.discount_value != null
-                    ? `${refValid.discount_value}% off`
-                    : refValid.discount_type === "fixed" && refValid.discount_value != null
-                      ? `$${(refValid.discount_value / 100).toFixed(2)} off`
-                      : "Code applied"}
-                {refValid.assigned_to_name ? ` — referred by ${refValid.assigned_to_name}` : ""}
+                {refValid.discount_type === "percent" && refValid.discount_value != null
+                  ? `${refValid.discount_value}% off`
+                  : refValid.discount_type === "fixed" && refValid.discount_value != null
+                    ? `$${(refValid.discount_value / 100).toFixed(2)} off`
+                    : "Code applied"}
+                {refValid.assigned_to_name ? ` - referred by ${refValid.assigned_to_name}` : ""}
               </p>
             )}
             {refError && <p className="mt-1 text-xs text-destructive">{refError}</p>}
           </div>
-          <Button disabled={busy} className="w-full bg-gradient-primary shadow-glow">{busy ? "Creating…" : "Create account"}</Button>
+          <Button disabled={busy} className="w-full bg-gradient-primary shadow-glow">{busy ? "Creating..." : "Create account"}</Button>
           <p className="text-center text-sm text-muted-foreground">
             Already a member? <Link to="/login" className="text-primary-glow hover:underline">Sign in</Link>
           </p>

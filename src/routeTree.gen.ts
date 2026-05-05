@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as StaffRouteImport } from './routes/staff'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as MembershipRouteImport } from './routes/membership'
+import { Route as MemberPassRouteImport } from './routes/member-pass'
 import { Route as ManagerRouteImport } from './routes/manager'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
@@ -33,6 +34,11 @@ const SignupRoute = SignupRouteImport.update({
 const MembershipRoute = MembershipRouteImport.update({
   id: '/membership',
   path: '/membership',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MemberPassRoute = MemberPassRouteImport.update({
+  id: '/member-pass',
+  path: '/member-pass',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ManagerRoute = ManagerRouteImport.update({
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRoute
+  '/member-pass': typeof MemberPassRoute
   '/membership': typeof MembershipRoute
   '/signup': typeof SignupRoute
   '/staff': typeof StaffRoute
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRoute
+  '/member-pass': typeof MemberPassRoute
   '/membership': typeof MembershipRoute
   '/signup': typeof SignupRoute
   '/staff': typeof StaffRoute
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRoute
+  '/member-pass': typeof MemberPassRoute
   '/membership': typeof MembershipRoute
   '/signup': typeof SignupRoute
   '/staff': typeof StaffRoute
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/login'
     | '/manager'
+    | '/member-pass'
     | '/membership'
     | '/signup'
     | '/staff'
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/login'
     | '/manager'
+    | '/member-pass'
     | '/membership'
     | '/signup'
     | '/staff'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/login'
     | '/manager'
+    | '/member-pass'
     | '/membership'
     | '/signup'
     | '/staff'
@@ -154,6 +166,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
   ManagerRoute: typeof ManagerRoute
+  MemberPassRoute: typeof MemberPassRoute
   MembershipRoute: typeof MembershipRoute
   SignupRoute: typeof SignupRoute
   StaffRoute: typeof StaffRoute
@@ -182,6 +195,13 @@ declare module '@tanstack/react-router' {
       path: '/membership'
       fullPath: '/membership'
       preLoaderRoute: typeof MembershipRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/member-pass': {
+      id: '/member-pass'
+      path: '/member-pass'
+      fullPath: '/member-pass'
+      preLoaderRoute: typeof MemberPassRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/manager': {
@@ -242,6 +262,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
   ManagerRoute: ManagerRoute,
+  MemberPassRoute: MemberPassRoute,
   MembershipRoute: MembershipRoute,
   SignupRoute: SignupRoute,
   StaffRoute: StaffRoute,

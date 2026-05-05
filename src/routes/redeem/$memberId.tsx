@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { DEMO_COMPANY, DEMO_VENUES, isDemoMode } from "@/lib/demo";
 import { GlassWater, CheckCircle2, Lock, Store } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/redeem/$memberId")({
-  component: Redeem,
+  component: RedeemRoute,
 });
 
 interface MemberInfo {
@@ -18,7 +19,6 @@ interface MemberInfo {
   email: string;
   subscription_status: string;
   remaining: number;
-  company_id: string | null;
 }
 interface VenueRow {
   id: string;
@@ -33,8 +33,18 @@ interface CompanyRow {
   redemptions_paused: boolean;
   paused_message: string | null;
 }
+interface ServerAssignmentRow {
+  id: string;
+  active: boolean | null;
+  user_id: string;
+  server_code: string | null;
+}
 
 const VENUE_KEY = "ovwc:selected_venue_id";
+
+function RedeemRoute() {
+  return isDemoMode ? <DemoRedeem /> : <Redeem />;
+}
 
 function Redeem() {
   const { memberId } = Route.useParams();
@@ -47,6 +57,7 @@ function Redeem() {
   const [venues, setVenues] = useState<VenueRow[]>([]);
   const [venue, setVenue] = useState<VenueRow | null>(null);
   const [company, setCompany] = useState<CompanyRow | null>(null);
+  const selectedDrinkName = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("drink")?.slice(0, 120) ?? null : null;
 
   useEffect(() => {
     (async () => {
@@ -70,17 +81,22 @@ function Redeem() {
       .then(({ data }) => { if (data) setCompany(data as CompanyRow); });
   }, [venue]);
 
+  async function loadRemaining(companyId: string) {
+    const scoped = await supabase.rpc("drinks_remaining_today", { _user_id: memberId, _company_id: companyId });
+    if (!scoped.error && typeof scoped.data === "number") return scoped.data;
+
+    const legacy = await supabase.rpc("drinks_remaining_today", { _user_id: memberId });
+    return typeof legacy.data === "number" ? legacy.data : 0;
+  }
+
   async function load() {
+    if (!venue) return;
     setErr(null);
     const { data: profile, error } = await supabase
-      .from("profiles").select("id, full_name, email, subscription_status, company_id").eq("id", memberId).maybeSingle();
+      .from("profiles").select("id, full_name, email, subscription_status").eq("id", memberId).maybeSingle();
     if (error || !profile) { setErr("Member not found"); return; }
-    if (venue && profile.company_id && profile.company_id !== venue.company_id) {
-      setErr("This member belongs to a different company.");
-      return;
-    }
-    const { data: r } = await supabase.rpc("drinks_remaining_today", { _user_id: memberId });
-    setInfo({ ...(profile as Omit<MemberInfo, "remaining">), remaining: typeof r === "number" ? r : 0 });
+    const remaining = await loadRemaining(venue.company_id);
+    setInfo({ ...(profile as Omit<MemberInfo, "remaining">), remaining });
   }
 
   useEffect(() => { if (unlocked) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [unlocked, memberId]);
@@ -112,22 +128,35 @@ function Redeem() {
     if (company?.redemptions_paused) return toast.error(company.paused_message || "Redemptions are paused");
     if (info.subscription_status !== "active") return toast.error("Subscription is not active");
     if (info.remaining < qty) return toast.error(`Only ${info.remaining} drink(s) left today`);
-    if (!empCode.trim()) return toast.error("Enter your server ID");
+    if (!empCode.trim()) return toast.error("Enter your 4-digit server code");
 
     setBusy(true);
-    // Look up server (employee) by their unique code
-    const { data: emp, error: empErr } = await supabase
-      .from("employees").select("id, active, full_name").eq("employee_code", empCode.trim()).maybeSingle();
-    if (empErr || !emp || !emp.active) {
+    const { data: serverRole, error: serverErr } = await supabase
+      .from("user_roles")
+      .select("id, active, user_id, server_code")
+      .eq("role", "server")
+      .eq("venue_id", venue.id)
+      .eq("server_code", empCode.trim())
+      .maybeSingle();
+    const server = serverRole as ServerAssignmentRow | null;
+    if (serverErr || !server || server.active === false) {
       setBusy(false);
-      return toast.error("Invalid or inactive server ID");
+      return toast.error("Invalid or inactive server code");
     }
 
+    const { data: serverProfile } = await supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", server.user_id)
+      .maybeSingle();
+
     const { error: insErr } = await supabase
-      .from("redemptions").insert({ user_id: memberId, employee_id: emp.id, drinks_redeemed: qty, venue_id: venue.id });
+      .from("redemptions")
+      .insert({ user_id: memberId, user_role_id: server.id, drinks_redeemed: qty, venue_id: venue.id, drink_name: selectedDrinkName || null });
     setBusy(false);
     if (insErr) return toast.error(insErr.message);
-    toast.success(`Redeemed ${qty} drink${qty > 1 ? "s" : ""} · ${emp.full_name} @ ${venue.name}`);
+    const serverName = serverProfile?.full_name || serverProfile?.email || `Server ${server.server_code ?? empCode.trim()}`;
+    toast.success(`Redeemed ${qty} drink${qty > 1 ? "s" : ""} � ${serverName} @ ${venue.name}`);
     setEmpCode("");
     load();
   }
@@ -220,6 +249,15 @@ function Redeem() {
             </div>
           </div>
 
+          {selectedDrinkName && (
+            <div className="mt-4 rounded-lg border border-primary/30 bg-primary/10 p-3">
+              <p className="text-xs uppercase tracking-widest text-primary-glow">Selected drink</p>
+              <p className="mt-1 font-display text-xl">{selectedDrinkName}</p>
+              <p className="mt-1 text-xs text-muted-foreground">This is logged with the redemption for reporting only.</p>
+            </div>
+          )}
+
+
           {company?.redemptions_paused && (
             <div className="mt-4 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
               {company.paused_message || "Redemptions are temporarily paused."}
@@ -227,13 +265,14 @@ function Redeem() {
           )}
 
           <div className="mt-6">
-            <Label htmlFor="empcode">Your server ID</Label>
+            <Label htmlFor="empcode">Your 4-digit server code</Label>
             <Input
               id="empcode"
               value={empCode}
-              onChange={(e) => setEmpCode(e.target.value)}
-              placeholder="e.g. EMP-1234"
-              autoComplete="off"
+              onChange={(e) => setEmpCode(e.target.value.replace(/\D/g, ""))}
+              inputMode="numeric"
+              maxLength={4}
+              placeholder="e.g. 4821"
             />
             <p className="mt-1 text-xs text-muted-foreground">Required for every redemption — tracks who poured the drink.</p>
           </div>
@@ -248,6 +287,80 @@ function Redeem() {
           </div>
         </div>
       )}
+    </main>
+  );
+}
+
+function DemoRedeem() {
+  const { memberId } = Route.useParams();
+  const [empCode, setEmpCode] = useState("");
+  const [remaining, setRemaining] = useState(2);
+  const venue = DEMO_VENUES[0];
+
+  function redeem(qty: 1 | 2) {
+    if (!empCode.trim()) {
+      toast.error("Enter your 4-digit server code");
+      return;
+    }
+    if (remaining < qty) {
+      toast.error(`Only ${remaining} drink(s) left today`);
+      return;
+    }
+    setRemaining((value) => value - qty);
+    toast.success(`Redeemed ${qty} drink${qty > 1 ? "s" : ""} for the demo member.`);
+  }
+
+  return (
+    <main className="container mx-auto max-w-md px-4 py-10">
+      <div className="mb-4 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
+        Demo mode is active. This redemption flow is local only and resets on refresh.
+      </div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl">Redeem drinks</h1>
+          <p className="text-sm text-muted-foreground">Confirm the member and tap redeem.</p>
+        </div>
+        <Badge variant="outline" className="gap-1"><Store className="h-3 w-3" />{venue.name}</Badge>
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-border/60 bg-velvet p-6 shadow-velvet">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">Member</p>
+            <h2 className="mt-1 font-display text-2xl">Demo Member</h2>
+            <p className="text-sm text-muted-foreground">{memberId}@demo.local</p>
+          </div>
+          <Badge className="bg-success text-success-foreground">active</Badge>
+        </div>
+        <div className="mt-4 flex items-center gap-3 rounded-lg bg-background/50 border border-border/60 p-4">
+          <GlassWater className="h-6 w-6 text-primary-glow" />
+          <div>
+            <p className="font-display text-xl">
+              <span className="text-gradient">{remaining}</span> <span className="text-muted-foreground text-sm">/ {DEMO_COMPANY.daily_drink_limit} left today</span>
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <Label htmlFor="empcode-demo">Your 4-digit server code</Label>
+          <Input
+            value={empCode}
+            onChange={(e) => setEmpCode(e.target.value.replace(/\D/g, ""))}
+            inputMode="numeric"
+            maxLength={4}
+            placeholder="e.g. 4821"
+          />
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <Button onClick={() => redeem(1)} disabled={remaining < 1} className="bg-gradient-primary shadow-glow h-14 text-base">
+            <CheckCircle2 className="mr-2 h-5 w-5" /> Redeem 1
+          </Button>
+          <Button onClick={() => redeem(2)} disabled={remaining < 2} variant="secondary" className="h-14 text-base">
+            <CheckCircle2 className="mr-2 h-5 w-5" /> Redeem 2
+          </Button>
+        </div>
+      </div>
     </main>
   );
 }

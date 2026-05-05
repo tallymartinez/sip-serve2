@@ -1,27 +1,29 @@
-import { createFileRoute, redirect, Link } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import QRCode from "qrcode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { createBillingPortalSession } from "@/payments.functions";
 import { StripeMembershipCheckout } from "@/components/StripeEmbeddedCheckout";
+import { DEMO_COMPANY, DEMO_TIER, isDemoMode } from "@/lib/demo";
+import { buildFallbackDrinkCards, type Company, drinkImages, headerImages, mapDrinkCards, pickImage, statusBadge, type DisplayDrinkCard, type DrinkCardRow } from "@/lib/drinkCards";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CalendarClock, Mail, User as UserIcon, GlassWater, ExternalLink, Check, Sparkles } from "lucide-react";
+import { CalendarClock, Check, ExternalLink, GlassWater, Mail, Sparkles, User as UserIcon } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/dashboard")({
   beforeLoad: async () => {
+    if (isDemoMode) return;
     const { data: sessionData } = await supabase.auth.getSession();
     if (sessionData.session) return;
     const { data } = await supabase.auth.getUser();
     if (!data.user) throw redirect({ to: "/login" });
   },
-  component: Dashboard,
+  component: DashboardRoute,
 });
 
-interface Profile {
+export interface Profile {
   id: string;
   email: string;
   full_name: string;
@@ -41,55 +43,88 @@ interface TierInfo {
   spots_left_in_tier: number | null;
 }
 
+export async function loadRemainingForCompany(userId: string, companyId: string) {
+  const scoped = await supabase.rpc("drinks_remaining_today", { _user_id: userId, _company_id: companyId });
+  if (!scoped.error && typeof scoped.data === "number") return scoped.data;
+
+  const legacy = await supabase.rpc("drinks_remaining_today", { _user_id: userId });
+  return typeof legacy.data === "number" ? legacy.data : 0;
+}
+
+function DashboardRoute() {
+  return isDemoMode ? <DemoDashboard /> : <Dashboard />;
+}
+
 function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [remaining, setRemaining] = useState<number>(2);
-  const [qrUrl, setQrUrl] = useState<string>("");
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [drinkCards, setDrinkCards] = useState<DisplayDrinkCard[]>([]);
+  const [remainingByCompany, setRemainingByCompany] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [tier, setTier] = useState<TierInfo | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
-
-  const redeemUrl = useMemo(
-    () => (typeof window !== "undefined" && user ? `${window.location.origin}/redeem/${user.id}` : ""),
-    [user],
-  );
 
   useEffect(() => {
     if (!user) return;
     let mounted = true;
 
     async function load() {
-      const [{ data: p }, { data: r }, { data: t }] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", user!.id).maybeSingle(),
-        supabase.rpc("drinks_remaining_today", { _user_id: user!.id }),
+      const [{ data: p }, { data: t }, { data: companyRows }, { data: cardRows }] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
         supabase.rpc("current_tier_info"),
+        supabase.from("companies").select("*").eq("active", true).order("name"),
+        supabase.from("drink_cards").select("*").neq("status", "inactive").order("category").order("sort_order").order("name"),
       ]);
+
       if (!mounted) return;
+
+      const companyList = (companyRows ?? []) as Company[];
+      const mappedCards = mapDrinkCards(companyList, (cardRows ?? []) as DrinkCardRow[]);
+      const remainingPairs = await Promise.all(
+        companyList.map(async (company) => [company.id, await loadRemainingForCompany(user.id, company.id)] as const),
+      );
+
+      if (!mounted) return;
+
       setProfile(p as Profile | null);
-      setRemaining(typeof r === "number" ? r : 2);
       setTier(Array.isArray(t) && t.length ? (t[0] as TierInfo) : null);
+      setCompanies(companyList);
+      setDrinkCards(mappedCards);
+      setRemainingByCompany(Object.fromEntries(remainingPairs));
       setLoading(false);
     }
+
     load();
 
-    if (redeemUrl) {
-      QRCode.toDataURL(redeemUrl, { width: 360, margin: 1, color: { dark: "#f5e6d6", light: "#1a0d0d" } })
-        .then(setQrUrl).catch(() => {});
-    }
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || companies.length === 0) return;
 
     const ch = supabase
       .channel(`redemptions-${user.id}`)
-      .on("postgres_changes",
+      .on(
+        "postgres_changes",
         { event: "INSERT", schema: "public", table: "redemptions", filter: `user_id=eq.${user.id}` },
         async () => {
-          const { data: r } = await supabase.rpc("drinks_remaining_today", { _user_id: user.id });
-          setRemaining(typeof r === "number" ? r : 0);
+          const pairs = await Promise.all(
+            companies.map(async (company) => [company.id, await loadRemainingForCompany(user.id, company.id)] as const),
+          );
+          setRemainingByCompany(Object.fromEntries(pairs));
           toast.success("A drink was just redeemed on your card");
-        })
+        },
+      )
       .subscribe();
-    return () => { mounted = false; supabase.removeChannel(ch); };
-  }, [user, redeemUrl]);
+
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [companies, user]);
 
   async function manageSubscription() {
     try {
@@ -113,10 +148,6 @@ function Dashboard() {
     }
   }
 
-  function startCheckout() {
-    setShowCheckout(true);
-  }
-
   if (loading || !profile) {
     return <main className="container mx-auto px-4 py-16 text-muted-foreground">Loading your card…</main>;
   }
@@ -137,6 +168,7 @@ function Dashboard() {
         : tier && tier.next_signup_number <= 200
           ? "Early tier"
           : "Standard tier";
+
     if (showCheckout) {
       return (
         <main className="container mx-auto max-w-3xl px-4 py-10 md:py-16">
@@ -147,26 +179,23 @@ function Dashboard() {
             </Button>
           </div>
           <div className="rounded-2xl border border-border/60 bg-velvet p-4 md:p-6 shadow-velvet">
-            <StripeMembershipCheckout
-              returnUrl={`${window.location.origin}/dashboard?checkout=success`}
-            />
+            <StripeMembershipCheckout returnUrl={`${window.location.origin}/dashboard?checkout=success`} />
           </div>
         </main>
       );
     }
+
     return (
       <main className="container mx-auto max-w-3xl px-4 py-10 md:py-16">
-        <div className="rounded-2xl border border-border/60 bg-velvet p-8 md:p-12 shadow-velvet text-center">
+        <div className="rounded-2xl border border-border/60 bg-velvet p-8 text-center shadow-velvet md:p-12">
           <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">O.V. Cocktail Club Membership</p>
           <h1 className="mt-3 font-display text-4xl md:text-5xl">Two cocktails a night. Every night.</h1>
-          <p className="mt-3 text-muted-foreground max-w-xl mx-auto">
-            Walk in, show your QR, drink.
-          </p>
+          <p className="mx-auto mt-3 max-w-xl text-muted-foreground">Walk in, choose your pour, and show your member QR when you’re ready.</p>
 
           <div className="mt-8 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-1.5 text-xs uppercase tracking-widest text-primary-glow">
             <Sparkles className="h-3.5 w-3.5" /> {tierLabel}
             {spotsLeft !== null && spotsLeft > 0 && (
-              <span className="text-muted-foreground normal-case tracking-normal">
+              <span className="normal-case tracking-normal text-muted-foreground">
                 · only {spotsLeft} spot{spotsLeft === 1 ? "" : "s"} left at this price
               </span>
             )}
@@ -177,101 +206,304 @@ function Dashboard() {
             <span className="text-muted-foreground">/ month</span>
           </div>
 
-          <ul className="mt-8 grid gap-3 text-left max-w-md mx-auto">
+          <ul className="mx-auto mt-8 grid max-w-md gap-3 text-left">
             {[
               "Two crafted cocktails every day",
-              "Personal QR member card",
+              "Choose a drink card, then show your QR",
               "Cancel anytime after 90 days",
-            ].map((b) => (
-              <li key={b} className="flex items-start gap-3 text-sm">
-                <Check className="mt-0.5 h-4 w-4 text-primary-glow shrink-0" />
-                <span>{b}</span>
+            ].map((item) => (
+              <li key={item} className="flex items-start gap-3 text-sm">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary-glow" />
+                <span>{item}</span>
               </li>
             ))}
           </ul>
 
-          <Button
-            onClick={startCheckout}
-            size="lg"
-            className="mt-8 bg-gradient-primary shadow-glow px-10"
-          >
+          <Button onClick={() => setShowCheckout(true)} size="lg" className="mt-8 bg-gradient-primary px-10 shadow-glow">
             Become a member · ${tierPrice}/mo
           </Button>
-
         </div>
       </main>
     );
   }
 
   return (
-    <main className="container mx-auto px-4 py-10 md:py-16 max-w-5xl">
-      <div className="grid gap-6 md:grid-cols-[1.1fr_1fr]">
-        {/* Member card */}
-        <div className="rounded-2xl border border-border/60 bg-velvet p-8 shadow-velvet">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">O.V. Cocktail Club</p>
-              <h1 className="mt-2 font-display text-3xl">{profile.full_name || "Member"}</h1>
+    <main className="container mx-auto max-w-6xl px-4 py-10 md:py-16">
+      <div className="rounded-3xl border border-border/60 bg-card p-6 shadow-card">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Member dashboard</p>
+            <h1 className="mt-2 font-display text-3xl">{profile.full_name || "Member"}</h1>
+            <div className="mt-3 flex flex-wrap gap-3 text-sm text-muted-foreground">
+              <span className="inline-flex items-center gap-2"><Mail className="h-4 w-4" />{profile.email}</span>
+              <span className="inline-flex items-center gap-2"><UserIcon className="h-4 w-4" />ID: {profile.id.slice(0, 8)}…</span>
+              <span className="inline-flex items-center gap-2"><CalendarClock className="h-4 w-4" />{startedAt ? `Member since ${startedAt.toLocaleDateString()}` : "No subscription yet"}</span>
             </div>
-            <Badge className={active ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"}>
-              {active ? "Active" : profile.subscription_status}
-            </Badge>
           </div>
 
-          <dl className="mt-6 space-y-3 text-sm">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Mail className="h-4 w-4" /> <span>{profile.email}</span>
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <UserIcon className="h-4 w-4" /> <span className="font-mono text-xs">ID: {profile.id.slice(0, 8)}…</span>
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <CalendarClock className="h-4 w-4" />
-              <span>{startedAt ? `Member since ${startedAt.toLocaleDateString()}` : "No subscription yet"}</span>
-            </div>
-          </dl>
-
-          <div className="mt-8 rounded-xl bg-background/50 border border-border/60 p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-widest text-muted-foreground">Tonight's pour</p>
-                <p className="mt-1 font-display text-2xl">
-                  <span className="text-gradient">{remaining}</span> <span className="text-muted-foreground text-base">/ 2 drinks</span>
-                </p>
-              </div>
-              <GlassWater className="h-10 w-10 text-primary-glow" />
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">Resets at midnight, every night.</p>
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge className="bg-success text-success-foreground">Active</Badge>
+            <span className="text-sm text-muted-foreground">${priceDollars}/mo · locked</span>
             <Button onClick={manageSubscription} className="bg-gradient-primary shadow-glow">
               Manage subscription <ExternalLink className="ml-1 h-4 w-4" />
             </Button>
-            <span className="self-center text-xs text-muted-foreground">
-              ${priceDollars}/mo · locked
-            </span>
-            {!canCancel && active && (
-              <p className="text-xs text-muted-foreground self-center">
-                Cancellation unlocks {90 - daysActive} day{90 - daysActive === 1 ? "" : "s"} from today.
-              </p>
-            )}
           </div>
         </div>
 
-        {/* QR code */}
-        <div className="rounded-2xl border border-border/60 bg-card p-8 shadow-card flex flex-col items-center text-center">
-          <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Show this to your server</p>
-          <div className="mt-4 rounded-xl bg-[oklch(0.14_0.015_20)] p-4 shadow-glow">
-            {qrUrl ? <img src={qrUrl} alt="Member QR code" className="h-64 w-64 rounded-md" /> : <div className="h-64 w-64 animate-pulse rounded-md bg-muted" />}
+        {!canCancel && (
+          <p className="mt-4 text-xs text-muted-foreground">
+            Cancellation unlocks {90 - daysActive} day{90 - daysActive === 1 ? "" : "s"} from today.
+          </p>
+        )}
+      </div>
+
+      <div className="mt-8 space-y-10">
+        {companies.map((company, companyIndex) => {
+          const cards = drinkCards.filter((card) => card.company_id === company.id && card.status !== "inactive");
+          const remaining = remainingByCompany[company.id] ?? company.daily_drink_limit ?? 2;
+          const backgroundImage = pickImage(headerImages, companyIndex);
+
+          return (
+            <section key={company.id} className="space-y-4">
+              <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-r from-[#5f141c] via-[#81222c] to-[#a43442] p-6 text-white shadow-velvet">
+                {backgroundImage && (
+                  <div className="absolute inset-0 opacity-20">
+                    <img src={backgroundImage} alt="" className="h-full w-full object-cover" />
+                  </div>
+                )}
+                <div className="relative flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/70">Company</p>
+                    <h2 className="mt-2 font-display text-3xl md:text-4xl">{company.name}</h2>
+                    <p className="mt-2 max-w-2xl text-sm text-white/80">
+                      Choose a drink card below to open your QR code for this company’s venues.
+                    </p>
+                  </div>
+
+                  <div className="min-w-[220px] rounded-2xl border border-white/15 bg-black/15 p-4 backdrop-blur">
+                    <p className="text-xs uppercase tracking-[0.25em] text-white/65">Remaining today</p>
+                    <div className="mt-2 flex items-center gap-3">
+                      <GlassWater className="h-8 w-8 text-white" />
+                      <p className="font-display text-3xl">
+                        {remaining}
+                        <span className="ml-2 text-lg text-white/70">/ {company.daily_drink_limit}</span>
+                      </p>
+                    </div>
+                    <p className="mt-2 text-xs text-white/70">Shared across every venue in this company.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {cards.map((card) => {
+                  return (
+                    <button
+                      key={card.id}
+                      type="button"
+                      onClick={() =>
+                        navigate({
+                          to: "/member-pass",
+                          search: {
+                            companyId: company.id,
+                            companyName: company.name,
+                            drinkId: card.id,
+                            name: card.name,
+                            description: card.description,
+                            category: card.category,
+                            price: card.price_label ?? "",
+                            status: card.status,
+                            image: card.imageUrl,
+                          },
+                        })
+                      }
+                      className="group relative min-h-[440px] overflow-hidden rounded-3xl border border-border/60 bg-card text-left shadow-card transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-velvet"
+                    >
+                      {card.imageUrl ? (
+                        <img
+                          src={card.imageUrl}
+                          alt={card.name}
+                          className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 bg-muted" />
+                      )}
+                      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(12,6,7,0.18),rgba(12,6,7,0.45)_38%,rgba(12,6,7,0.78)_68%,rgba(12,6,7,0.96)_100%)]" />
+
+                      <div className="relative flex h-full min-h-[440px] flex-col justify-between p-5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex flex-wrap gap-2">
+                            {statusBadge(card.status)}
+                          </div>
+                          <span className="rounded-full border border-white/20 bg-black/20 px-3 py-1 text-xs font-medium tracking-[0.2em] text-white/80 backdrop-blur">
+                            Select drink
+                          </span>
+                        </div>
+
+                        <div className="mt-auto space-y-4">
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.25em] text-white/75">{card.category}</p>
+                            <h3 className="mt-2 font-display text-3xl text-white drop-shadow-[0_6px_24px_rgba(0,0,0,0.45)]">{card.name}</h3>
+                          </div>
+                          <p className="max-w-[28ch] text-sm leading-6 text-white/85 drop-shadow-[0_4px_18px_rgba(0,0,0,0.45)]">
+                            {card.description || "Select this drink to generate your member QR."}
+                          </p>
+                          <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-3">
+                            <span className="text-sm text-white/80">
+                              {card.price_label || (card.status === "included" ? "Included in membership" : "Visible on menu")}
+                            </span>
+                            <span className="text-sm font-medium text-primary-glow">Open QR</span>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {cards.length === 0 && (
+                  <div className="rounded-3xl border border-dashed border-border/60 bg-card p-6 text-sm text-muted-foreground">
+                    No drink cards are set up for this company yet.
+                  </div>
+                )}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </main>
+  );
+}
+
+function DemoDashboard() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const demoCards = useMemo(
+    () =>
+      buildFallbackDrinkCards(DEMO_COMPANY.id).slice(0, 8).map((card, index) => ({
+        ...card,
+        imageUrl: pickImage(drinkImages, index),
+      })),
+    [],
+  );
+
+  if (!user) {
+    return <main className="container mx-auto px-4 py-16 text-muted-foreground">Sign in through demo mode to view the mock member card.</main>;
+  }
+
+  return (
+    <main className="container mx-auto max-w-6xl px-4 py-10 md:py-16">
+      <div className="mb-4 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
+        Demo mode is active. Pick a drink card below to open the same QR flow without needing Supabase live.
+      </div>
+
+      <div className="rounded-3xl border border-border/60 bg-card p-6 shadow-card">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Demo member dashboard</p>
+            <h1 className="mt-2 font-display text-3xl">{user.user_metadata.full_name || "Demo Member"}</h1>
+            <div className="mt-3 flex flex-wrap gap-3 text-sm text-muted-foreground">
+              <span className="inline-flex items-center gap-2"><Mail className="h-4 w-4" />{user.email}</span>
+              <span className="inline-flex items-center gap-2"><UserIcon className="h-4 w-4" />ID: {user.id.slice(0, 8)}…</span>
+            </div>
           </div>
-          <p className="mt-4 text-sm text-muted-foreground">Unique to you. Don't share it.</p>
-          <p className="mt-1 text-xs text-muted-foreground">Tip: turn your screen brightness up for a faster scan.</p>
-          <Link to="/redeem/$memberId" params={{ memberId: profile.id }} className="mt-2 text-xs text-primary-glow hover:underline">
-            (test redemption page)
-          </Link>
+
+          <div className="flex items-center gap-3">
+            <Badge className="bg-success text-success-foreground">Active</Badge>
+            <span className="text-sm text-muted-foreground">${(DEMO_TIER.price_cents / 100).toFixed(0)}/mo · demo rate</span>
+          </div>
         </div>
       </div>
+
+      <section className="mt-8 space-y-4">
+        <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-r from-[#5f141c] via-[#81222c] to-[#a43442] p-6 text-white shadow-velvet">
+          {pickImage(headerImages, 0) && (
+            <div className="absolute inset-0 opacity-20">
+              <img src={pickImage(headerImages, 0)} alt="" className="h-full w-full object-cover" />
+            </div>
+          )}
+          <div className="relative flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-white/70">Company</p>
+              <h2 className="mt-2 font-display text-3xl md:text-4xl">{DEMO_COMPANY.name}</h2>
+              <p className="mt-2 max-w-2xl text-sm text-white/80">Pick a drink card to generate the member QR for this demo company.</p>
+            </div>
+            <div className="min-w-[220px] rounded-2xl border border-white/15 bg-black/15 p-4 backdrop-blur">
+              <p className="text-xs uppercase tracking-[0.25em] text-white/65">Remaining today</p>
+              <div className="mt-2 flex items-center gap-3">
+                <GlassWater className="h-8 w-8 text-white" />
+                <p className="font-display text-3xl">
+                  2
+                  <span className="ml-2 text-lg text-white/70">/ {DEMO_COMPANY.daily_drink_limit}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {demoCards.map((card) => {
+            return (
+              <button
+                key={card.id}
+                type="button"
+                onClick={() =>
+                  navigate({
+                    to: "/member-pass",
+                    search: {
+                      companyId: DEMO_COMPANY.id,
+                      companyName: DEMO_COMPANY.name,
+                      drinkId: card.id,
+                      name: card.name,
+                      description: card.description,
+                      category: card.category,
+                      price: card.price_label ?? "",
+                      status: card.status,
+                      image: card.imageUrl,
+                    },
+                  })
+                }
+                className="group relative min-h-[440px] overflow-hidden rounded-3xl border border-border/60 bg-card text-left shadow-card transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-velvet"
+              >
+                {card.imageUrl ? (
+                  <img
+                    src={card.imageUrl}
+                    alt={card.name}
+                    className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-muted" />
+                )}
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(12,6,7,0.18),rgba(12,6,7,0.45)_38%,rgba(12,6,7,0.78)_68%,rgba(12,6,7,0.96)_100%)]" />
+
+                <div className="relative flex h-full min-h-[440px] flex-col justify-between p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-wrap gap-2">
+                      {statusBadge(card.status)}
+                    </div>
+                    <span className="rounded-full border border-white/20 bg-black/20 px-3 py-1 text-xs font-medium tracking-[0.2em] text-white/80 backdrop-blur">
+                      Select drink
+                    </span>
+                  </div>
+
+                  <div className="mt-auto space-y-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.25em] text-white/75">{card.category}</p>
+                      <h3 className="mt-2 font-display text-3xl text-white drop-shadow-[0_6px_24px_rgba(0,0,0,0.45)]">{card.name}</h3>
+                    </div>
+                    <p className="max-w-[28ch] text-sm leading-6 text-white/85 drop-shadow-[0_4px_18px_rgba(0,0,0,0.45)]">
+                      {card.description}
+                    </p>
+                    <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-3">
+                      <span className="text-sm text-white/80">{card.price_label || "Included in membership"}</span>
+                      <span className="text-sm font-medium text-primary-glow">Open QR</span>
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
     </main>
   );
 }
