@@ -62,7 +62,7 @@ export const createMembershipCheckout = createServerFn({ method: "POST" })
       line_items: [{ price: stripePrice.id, quantity: 1 }],
       mode: "subscription",
       ui_mode: "embedded_page",
-      redirect_on_completion: "if_required",
+      redirect_on_completion: "always",
       return_url: data.returnUrl,
       customer_email: profile.email ?? user.email ?? undefined,
       metadata: {
