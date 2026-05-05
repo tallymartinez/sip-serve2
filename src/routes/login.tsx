@@ -1,19 +1,29 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { inferDemoRole, isDemoMode, setStoredDemoAuth, type DemoRole } from "@/lib/demo";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
 function Login() {
+  const { user, loading } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.navigate({ to: "/" });
+    }
+  }, [loading, user, router]);
+
+  if (!loading && user) return null;
 
   function signInDemo(role: DemoRole) {
     const normalizedEmail = email.trim().toLowerCase();

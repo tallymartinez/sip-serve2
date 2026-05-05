@@ -71,6 +71,7 @@ function Header() {
         <nav className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
           {user ? (
             <>
+              <Link to="/"><Button variant="ghost" size="sm" className="px-2 sm:px-3">Home</Button></Link>
               <Link to="/dashboard"><Button variant="ghost" size="sm" className="px-2 sm:px-3">My card</Button></Link>
               {(isServer || isManager) && <Link to="/staff"><Button variant="ghost" size="sm" className="px-2 sm:px-3">Staff</Button></Link>}
               {isManager && !isAdmin && <Link to="/manager"><Button variant="ghost" size="sm" className="px-2 sm:px-3">Manager</Button></Link>}

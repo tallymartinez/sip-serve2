@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -34,20 +34,12 @@ function getSelectedDrinkMap(content: HomeContent, companyIds: string[]) {
 
 function Home() {
   const { user, loading } = useAuth();
-  const router = useRouter();
   const [content, setContent] = useState<HomeContent>(defaultHomeContent);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [drinkCards, setDrinkCards] = useState<DisplayDrinkCard[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.navigate({ to: "/membership" });
-    }
-  }, [loading, user, router]);
-
-  useEffect(() => {
-    if (!user) return;
     if (isDemoMode) {
       const demoCompanies = DEMO_COMPANIES.map((company) => ({ ...company }) as Company);
       setCompanies(demoCompanies);
@@ -65,7 +57,7 @@ function Home() {
       setCompanies(nextCompanies);
       setDrinkCards(mapDrinkCards(nextCompanies, (drinkResult.data ?? []) as DrinkCardRow[]));
     });
-  }, [user]);
+  }, []);
 
   const featuredCompanies = useMemo(() => {
     const companyIds = companies.map((company) => company.id);
@@ -98,7 +90,7 @@ function Home() {
 
   const activeCompanySection = featuredCompanies.find(({ company }) => company.id === selectedCompanyId) ?? null;
 
-  if (loading || !user) {
+  if (loading) {
     return (
       <main className="container mx-auto px-4 py-24 text-center text-muted-foreground">
         Loading…
@@ -144,7 +136,14 @@ function Home() {
             )}
           </div>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
-            <Link to="/dashboard"><Button size="lg" className="bg-gradient-primary shadow-glow">My member card</Button></Link>
+            {user ? (
+              <Link to="/dashboard"><Button size="lg" className="bg-gradient-primary shadow-glow">My member card</Button></Link>
+            ) : (
+              <>
+                <Link to="/membership"><Button size="lg" className="bg-gradient-primary shadow-glow">Become a member</Button></Link>
+                <Link to="/login"><Button size="lg" variant="outline">Member sign in</Button></Link>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -252,7 +251,7 @@ function Home() {
                             <h4 className="mt-2 font-display text-3xl text-white drop-shadow-[0_6px_24px_rgba(0,0,0,0.45)]">{card.name}</h4>
                           </div>
                           <p className="max-w-[28ch] text-sm leading-6 text-white/85 drop-shadow-[0_4px_18px_rgba(0,0,0,0.45)]">
-                            {card.description || "Select this drink to generate your member QR."}
+                            {card.description || "A featured house cocktail from the current menu."}
                           </p>
                           <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-3">
                             <span className="text-sm text-white/80">
@@ -299,7 +298,14 @@ function Home() {
         <h2 className="mt-4 font-display text-4xl md:text-5xl">{content.closingHeading}</h2>
         <p className="mt-3 text-muted-foreground">{content.closingBody}</p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Link to="/dashboard"><Button size="lg" className="bg-gradient-primary shadow-glow">Open my card</Button></Link>
+          {user ? (
+            <Link to="/dashboard"><Button size="lg" className="bg-gradient-primary shadow-glow">Open my card</Button></Link>
+          ) : (
+            <>
+              <Link to="/membership"><Button size="lg" className="bg-gradient-primary shadow-glow">See membership</Button></Link>
+              <Link to="/login"><Button size="lg" variant="outline">Sign in</Button></Link>
+            </>
+          )}
         </div>
       </section>
 

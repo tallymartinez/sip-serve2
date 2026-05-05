@@ -1,11 +1,12 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isDemoMode, setStoredDemoAuth } from "@/lib/demo";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/signup")({ component: Signup });
@@ -43,12 +44,21 @@ type ValidatedCode = {
 };
 
 function Signup() {
+  const { user, loading } = useAuth();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [refInput, setRefInput] = useState("");
   const [refValidating, setRefValidating] = useState(false);
   const [refValid, setRefValid] = useState<ValidatedCode | null>(null);
   const [refError, setRefError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.navigate({ to: "/" });
+    }
+  }, [loading, user, router]);
+
+  if (!loading && user) return null;
 
   async function checkCode() {
     const code = refInput.trim();
