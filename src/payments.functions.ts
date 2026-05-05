@@ -107,3 +107,78 @@ export const createBillingPortalSession = createServerFn({ method: "POST" })
     });
     return portal.url;
   });
+
+export const toggleMembershipRenewal = createServerFn({ method: "POST" })
+  .inputValidator((d: { accessToken: string; targetUserId: string; environment: StripeEnv }) => d)
+  .handler(async ({ data }) => {
+    const actor = await getUserFromToken(data.accessToken);
+
+    const { data: targetProfile, error: targetError } = await supabaseAdmin
+      .from("profiles")
+      .select("id, company_id")
+      .eq("id", data.targetUserId)
+      .maybeSingle();
+
+    if (targetError || !targetProfile) throw new Error("Target member not found");
+
+    const [{ data: roles }, { data: ownedCompanies }] = await Promise.all([
+      supabaseAdmin.from("user_roles").select("role, company_id").eq("user_id", actor.id),
+      supabaseAdmin.from("companies").select("id").eq("owner_user_id", actor.id),
+    ]);
+
+    const companyId = targetProfile.company_id;
+    const authorized =
+      (roles ?? []).some((role) => role.role === "super_admin") ||
+      (!!companyId &&
+        (
+          (roles ?? []).some((role) => role.role === "admin" && role.company_id === companyId) ||
+          (ownedCompanies ?? []).some((company) => company.id === companyId)
+        ));
+
+    if (!authorized) throw new Error("Not authorized to manage this membership");
+
+    const { data: subscription, error: subscriptionError } = await supabaseAdmin
+      .from("subscriptions")
+      .select("stripe_subscription_id, cancel_at_period_end, current_period_end, status")
+      .eq("user_id", data.targetUserId)
+      .eq("environment", data.environment)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (subscriptionError) throw subscriptionError;
+    if (!subscription?.stripe_subscription_id) throw new Error("No paid Stripe subscription found for this member");
+
+    const stripe = createStripeClient(data.environment);
+    const nextCancelAtPeriodEnd = !Boolean(subscription.cancel_at_period_end);
+    const updated = await stripe.subscriptions.update(subscription.stripe_subscription_id, {
+      cancel_at_period_end: nextCancelAtPeriodEnd,
+    });
+
+    const item = updated.items?.data?.[0];
+    const periodEnd = item?.current_period_end ?? updated.current_period_end;
+
+    await supabaseAdmin
+      .from("subscriptions")
+      .update({
+        status: updated.status,
+        current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+        cancel_at_period_end: updated.cancel_at_period_end || false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("stripe_subscription_id", updated.id)
+      .eq("environment", data.environment);
+
+    await supabaseAdmin
+      .from("profiles")
+      .update({
+        subscription_status: ["active", "trialing", "past_due"].includes(updated.status) ? "active" : updated.status,
+      })
+      .eq("id", data.targetUserId);
+
+    return {
+      cancelAtPeriodEnd: updated.cancel_at_period_end || false,
+      currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+      status: updated.status,
+    };
+  });

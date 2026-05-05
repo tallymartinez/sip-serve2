@@ -9,7 +9,7 @@ import { buildFallbackDrinkCards, type Company, drinkImages, headerImages, mapDr
 import { getStripeEnvironment } from "@/lib/stripe";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CalendarClock, Check, ExternalLink, GlassWater, Mail, Sparkles, User as UserIcon } from "lucide-react";
+import { AlertTriangle, CalendarClock, Check, ExternalLink, GlassWater, Mail, Sparkles, User as UserIcon } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/dashboard")({
@@ -43,6 +43,12 @@ interface TierInfo {
   spots_left_in_tier: number | null;
 }
 
+interface SubscriptionSummary {
+  status: string;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean | null;
+}
+
 export async function loadRemainingForCompany(userId: string, companyId: string) {
   const scoped = await supabase.rpc("drinks_remaining_today", { _user_id: userId, _company_id: companyId });
   if (!scoped.error && typeof scoped.data === "number") return scoped.data;
@@ -65,17 +71,26 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [tier, setTier] = useState<TierInfo | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
 
   useEffect(() => {
     if (!user) return;
     let mounted = true;
 
     async function load() {
-      const [{ data: p }, { data: t }, { data: companyRows }, { data: cardRows }] = await Promise.all([
+      const [{ data: p }, { data: t }, { data: companyRows }, { data: cardRows }, { data: subscriptionRow }] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
         supabase.rpc("current_tier_info"),
         supabase.from("companies").select("*").eq("active", true).order("name"),
         supabase.from("drink_cards").select("*").neq("status", "inactive").order("category").order("sort_order").order("name"),
+        supabase
+          .from("subscriptions")
+          .select("status,current_period_end,cancel_at_period_end")
+          .eq("user_id", user.id)
+          .eq("environment", getStripeEnvironment())
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
 
       if (!mounted) return;
@@ -90,6 +105,7 @@ function Dashboard() {
 
       setProfile(p as Profile | null);
       setTier(Array.isArray(t) && t.length ? (t[0] as TierInfo) : null);
+      setSubscription((subscriptionRow as SubscriptionSummary | null) ?? null);
       setCompanies(companyList);
       setDrinkCards(mappedCards);
       setRemainingByCompany(Object.fromEntries(remainingPairs));
@@ -158,6 +174,8 @@ function Dashboard() {
   const canCancel = daysActive >= 90;
   const lockedPriceCents = profile.subscription_price_cents ?? tier?.price_cents ?? 8000;
   const priceDollars = (lockedPriceCents / 100).toFixed(0);
+  const renewalEndsAt = subscription?.current_period_end ? new Date(subscription.current_period_end) : null;
+  const renewalEndsInDays = renewalEndsAt ? Math.max(0, Math.ceil((renewalEndsAt.getTime() - Date.now()) / 86400000)) : null;
 
   if (!active) {
     const tierPrice = tier ? (tier.price_cents / 100).toFixed(0) : "80";
@@ -254,6 +272,21 @@ function Dashboard() {
           <p className="mt-4 text-xs text-muted-foreground">
             Cancellation unlocks {90 - daysActive} day{90 - daysActive === 1 ? "" : "s"} from today.
           </p>
+        )}
+
+        {subscription?.cancel_at_period_end && renewalEndsAt && renewalEndsAt > new Date() && (
+          <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+              <div>
+                <p className="font-medium text-amber-100">Renewal is turned off</p>
+                <p className="mt-1 text-amber-50/80">
+                  Your membership stays active until {renewalEndsAt.toLocaleDateString()}
+                  {renewalEndsInDays !== null ? ` (${renewalEndsInDays} day${renewalEndsInDays === 1 ? "" : "s"} remaining)` : ""}.
+                </p>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 

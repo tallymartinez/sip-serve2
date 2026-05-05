@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { toggleMembershipRenewal } from "@/payments.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { clearStoredDemoHomeContent, defaultHomeContent, getStoredDemoHomeContent, mergeHomeContent, setStoredDemoHomeContent, type HomeContent, type ImageDisplay } from "@/lib/homeContent";
 import { DEMO_COMPANIES, DEMO_COMPANY, DEMO_MANAGER_LOGS, DEMO_VENUES, isDemoMode } from "@/lib/demo";
 import { buildFallbackDrinkCards } from "@/lib/drinkCards";
+import { getStripeEnvironment } from "@/lib/stripe";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
@@ -409,6 +411,15 @@ interface MemberRow {
   subscription_status: string; subscription_started_at: string | null;
   drinks: number; company_id: string | null;
 }
+interface SubscriptionRow {
+  user_id: string;
+  status: string;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean | null;
+  environment: string;
+  stripe_subscription_id: string;
+  updated_at: string;
+}
 interface LogRow {
   id: string; redeemed_at: string; drinks_redeemed: number;
   user_id: string; user_role_id: string | null; employee_id: string | null; venue_id: string | null;
@@ -471,12 +482,23 @@ function Admin() {
   const [myCodeEdit, setMyCodeEdit] = useState("");
   const [overrideUses, setOverrideUses] = useState<OverrideUse[]>([]);
   const [compIds, setCompIds] = useState<Set<string>>(new Set());
+  const [subscriptionMap, setSubscriptionMap] = useState<Record<string, SubscriptionRow>>({});
   const [compBusy, setCompBusy] = useState(false);
   const [companyOwnerDrafts, setCompanyOwnerDrafts] = useState<Record<string, string>>({});
 
   const since = useMemo(() => rangeStart(range), [range]);
   const activeCompany = companies.find((c) => c.id === activeCompanyId) ?? null;
   const companyVenues = venues.filter((v) => v.company_id === activeCompanyId);
+
+  function hasActivePaidAccess(subscription: SubscriptionRow | null | undefined) {
+    if (!subscription) return false;
+    const end = subscription.current_period_end ? new Date(subscription.current_period_end) : null;
+    const stillInTerm = !end || end > new Date();
+    return (
+      (["active", "trialing", "past_due"].includes(subscription.status) && stillInTerm) ||
+      (subscription.status === "canceled" && !!end && end > new Date())
+    );
+  }
 
   // Detect super admin
   useEffect(() => {
@@ -669,6 +691,27 @@ function Admin() {
     // Comp memberships (super admin only — RLS will return only own-rows for non-super-admins)
     const memberIds = (pRes.data ?? []).map((p) => p.id);
     if (memberIds.length > 0) {
+      const { data: subscriptionRows, error: subscriptionRowsError } = await supabase
+        .from("subscriptions")
+        .select("user_id,status,current_period_end,cancel_at_period_end,environment,stripe_subscription_id,updated_at")
+        .eq("environment", getStripeEnvironment())
+        .in("user_id", memberIds)
+        .order("updated_at", { ascending: false });
+
+      if (subscriptionRowsError) {
+        toast.error(subscriptionRowsError.message);
+      } else {
+        const nextMap: Record<string, SubscriptionRow> = {};
+        for (const row of (subscriptionRows ?? []) as SubscriptionRow[]) {
+          if (!nextMap[row.user_id]) nextMap[row.user_id] = row;
+        }
+        setSubscriptionMap(nextMap);
+      }
+    } else {
+      setSubscriptionMap({});
+    }
+
+    if (memberIds.length > 0) {
       const { data: comps } = await supabase
         .from("comp_memberships")
         .select("user_id")
@@ -818,13 +861,36 @@ function Admin() {
 
   // ===== Existing actions adapted =====
   async function toggleStatus(m: MemberRow) {
-    const next = m.subscription_status === "active" ? "inactive" : "active";
-    const patch: { subscription_status: string; subscription_started_at?: string } = { subscription_status: next };
-    if (next === "active" && !m.subscription_started_at) patch.subscription_started_at = new Date().toISOString();
-    const { error } = await supabase.from("profiles").update(patch).eq("id", m.id);
-    if (error) return toast.error(error.message);
-    toast.success(`Member ${next === "active" ? "activated" : "deactivated"}`);
-    loadAll();
+    if (!user) return;
+    const paidSubscription = subscriptionMap[m.id];
+    if (!paidSubscription) {
+      toast.error("No paid Stripe subscription found. Use Comp to grant free access.");
+      return;
+    }
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Not signed in");
+
+      const result = await toggleMembershipRenewal({
+        data: {
+          accessToken: token,
+          targetUserId: m.id,
+          environment: getStripeEnvironment(),
+        },
+      });
+
+      if (result.cancelAtPeriodEnd) {
+        const endLabel = result.currentPeriodEnd ? new Date(result.currentPeriodEnd).toLocaleDateString() : "the end of the current billing period";
+        toast.success(`Subscription will remain active until ${endLabel}`);
+      } else {
+        toast.success("Subscription renewal restored");
+      }
+      loadAll();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update Stripe renewal");
+    }
   }
 
   async function saveMember(form: FormData) {
@@ -939,11 +1005,13 @@ function Admin() {
     if (!user) return;
     const isComped = compIds.has(m.id);
     if (isComped) {
-      if (!confirm(`Revoke free membership for ${m.email}? They will be marked inactive.`)) return;
-      const [{ error: e1 }, { error: e2 }] = await Promise.all([
-        supabase.from("comp_memberships").delete().eq("user_id", m.id),
-        supabase.from("profiles").update({ subscription_status: "inactive" }).eq("id", m.id),
-      ]);
+      if (!confirm(`Revoke free membership for ${m.email}?`)) return;
+      const keepActive = hasActivePaidAccess(subscriptionMap[m.id]);
+      const deleteComp = supabase.from("comp_memberships").delete().eq("user_id", m.id);
+      const updateProfile = keepActive
+        ? Promise.resolve({ error: null })
+        : supabase.from("profiles").update({ subscription_status: "inactive" }).eq("id", m.id);
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([deleteComp, updateProfile]);
       if (e1 || e2) return toast.error((e1 ?? e2)!.message);
       toast.success("Comp membership revoked");
     } else {
@@ -1232,8 +1300,17 @@ function Admin() {
                     <TableCell className="text-right">{m.drinks}</TableCell>
                     <TableCell className="text-right space-x-2">
                       <Button size="sm" variant="ghost" onClick={() => setEditing(m)}><Pencil className="h-4 w-4" /></Button>
-                      <Button size="sm" variant="outline" onClick={() => toggleStatus(m)}>
-                        {m.subscription_status === "active" ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => toggleStatus(m)}
+                        title={
+                          subscriptionMap[m.id]?.cancel_at_period_end
+                            ? "Resume Stripe renewal"
+                            : "End Stripe renewal at the end of this billing period"
+                        }
+                      >
+                        {subscriptionMap[m.id]?.cancel_at_period_end ? <ShieldCheck className="h-4 w-4" /> : <ShieldOff className="h-4 w-4" />}
                       </Button>
                       {isSuperAdmin && (
                         <Button
