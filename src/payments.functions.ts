@@ -61,7 +61,7 @@ export const createMembershipCheckout = createServerFn({ method: "POST" })
     const session = await stripe.checkout.sessions.create({
       line_items: [{ price: stripePrice.id, quantity: 1 }],
       mode: "subscription",
-      ui_mode: "embedded",
+      ui_mode: "embedded_page",
       redirect_on_completion: "if_required",
       return_url: data.returnUrl,
       customer_email: profile.email ?? user.email ?? undefined,
