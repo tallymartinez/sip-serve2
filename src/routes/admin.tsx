@@ -1,5 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { ensureBackofficeUser } from "@/admin.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toggleMembershipRenewal } from "@/payments.functions";
@@ -460,7 +461,7 @@ interface HomeEditorCompanyOption {
 type DrinkCardStatus = HomeDrinkCardOption["status"];
 
 function Admin() {
-  const { isAdmin, loading, user } = useAuth();
+  const { isAdmin, loading, session, user } = useAuth();
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [range, setRange] = useState<Range>("day");
   const [venueFilter, setVenueFilter] = useState<string>("all");
@@ -906,7 +907,7 @@ function Admin() {
   }
 
   async function addEmployee(form: FormData) {
-    if (!activeCompanyId) return;
+    if (!activeCompanyId || !session?.access_token) return;
     const email = String(form.get("emp_email") ?? "").trim().toLowerCase();
     const venue_id = String(form.get("emp_venue") ?? "");
     const server_code = String(form.get("emp_code") ?? "").trim();
@@ -914,9 +915,21 @@ function Admin() {
     if (!/^\d{4}$/.test(server_code)) return toast.error("Server code must be exactly 4 digits");
     if (!venue_id) return toast.error("Choose a venue");
 
-    const { data: uid, error } = await supabase.rpc("find_user_id_by_email", { _email: email });
+    const { data: existingId, error } = await supabase.rpc("find_user_id_by_email", { _email: email });
     if (error) return toast.error(error.message);
-    if (!uid) return toast.error("No user with that email - they must sign up first");
+    let uid = existingId as string | null;
+    let created = false;
+    if (!uid) {
+      const result = await ensureBackofficeUser({
+        data: {
+          accessToken: session.access_token,
+          companyId: activeCompanyId,
+          email,
+        },
+      });
+      uid = result.userId;
+      created = result.created;
+    }
 
     const { error: insertError } = await supabase.from("user_roles").insert({
       user_id: uid,
@@ -930,10 +943,9 @@ function Admin() {
       if (insertError.code === "23505") return toast.error("That server assignment or code already exists for this venue");
       return toast.error(insertError.message);
     }
-    toast.success("Server added");
+    toast.success(created ? "Server account created and assigned. They can use Forgot password to set a password." : "Server added");
     loadAll();
   }
-
   async function toggleEmployee(e: ServerAssignment) {
     const { error } = await supabase.from("user_roles").update({ active: !e.active }).eq("id", e.id);
     if (error) return toast.error(error.message);
@@ -978,8 +990,9 @@ function Admin() {
     if (!activeCompanyId) return;
     const email = String(form.get("admin_email") ?? "").trim().toLowerCase();
     if (!email) return toast.error("Enter an email");
-    const { data: uid, error } = await supabase.rpc("find_user_id_by_email", { _email: email });
+    const { data: existingId, error } = await supabase.rpc("find_user_id_by_email", { _email: email });
     if (error) return toast.error(error.message);
+    const uid = existingId as string | null;
     if (!uid) return toast.error("No user with that email — they must sign up first");
     const { error: insErr } = await supabase.from("user_roles").insert({ user_id: uid, role: "admin", company_id: activeCompanyId });
     if (insErr) {
@@ -1374,7 +1387,11 @@ function Admin() {
             onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); addEmployee(fd); e.currentTarget.reset(); }}
             className="rounded-xl border border-border/60 bg-card p-4 grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]"
           >
-            <div><Label htmlFor="emp_email">Server email</Label><Input id="emp_email" name="emp_email" type="email" placeholder="server@example.com" required /></div>
+            <div>
+              <Label htmlFor="emp_email">Server email</Label>
+              <Input id="emp_email" name="emp_email" type="email" placeholder="server@example.com" required />
+              <p className="mt-1 text-xs text-muted-foreground">If no account exists yet, one will be created without email confirmation.</p>
+            </div>
             <div><Label htmlFor="emp_code">4-digit code</Label><Input id="emp_code" name="emp_code" inputMode="numeric" maxLength={4} pattern="[0-9]{4}" placeholder="4821" required /></div>
             <div>
               <Label htmlFor="emp_venue">Venue</Label>
@@ -2101,6 +2118,7 @@ function VenueDataPanel({ venues, employees }: { venues: Venue[]; employees: Ser
 interface ManagerRow { user_id: string; email: string; full_name: string; venue_ids: string[]; }
 
 function ManagersPanel({ companyId, venues }: { companyId: string | null; venues: Venue[] }) {
+  const { session } = useAuth();
   const [managers, setManagers] = useState<ManagerRow[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [editing, setEditing] = useState<ManagerRow | null>(null);
@@ -2158,14 +2176,28 @@ function ManagersPanel({ companyId, venues }: { companyId: string | null; venues
   useEffect(() => { load(); }, [companyId]);
 
   async function promoteManager(form: FormData) {
-    if (!companyId) return toast.error("Choose a company first");
+    if (!companyId || !session?.access_token) return toast.error("Choose a company first");
     const email = String(form.get("manager_email") ?? "").trim().toLowerCase();
     const venueId = String(form.get("manager_venue") ?? "");
     if (!email) return toast.error("Enter an email");
     if (!venueId) return toast.error("Choose a venue");
-    const { data: uid, error } = await supabase.rpc("find_user_id_by_email", { _email: email });
+
+    const { data: existingId, error } = await supabase.rpc("find_user_id_by_email", { _email: email });
     if (error) return toast.error(error.message);
-    if (!uid) return toast.error("No user with that email — they must sign up first");
+    let uid = existingId as string | null;
+    let created = false;
+    if (!uid) {
+      const result = await ensureBackofficeUser({
+        data: {
+          accessToken: session.access_token,
+          companyId,
+          email,
+        },
+      });
+      uid = result.userId;
+      created = result.created;
+    }
+
     const { error: insErr } = await supabase
       .from("user_roles")
       .insert({ user_id: uid, role: "manager", company_id: companyId, venue_id: venueId, active: true });
@@ -2173,10 +2205,9 @@ function ManagersPanel({ companyId, venues }: { companyId: string | null; venues
       if (insErr.code === "23505") return toast.error("That manager is already assigned to this venue");
       return toast.error(insErr.message);
     }
-    toast.success("Manager assigned");
+    toast.success(created ? "Manager account created and assigned. They can use Forgot password to set a password." : "Manager assigned");
     load();
   }
-
   async function removeManager(m: ManagerRow) {
     if (!companyId) return;
     if (!confirm(`Remove manager access from ${m.email}? All venue assignments will be cleared.`)) return;
@@ -2202,7 +2233,7 @@ function ManagersPanel({ companyId, venues }: { companyId: string | null; venues
         <div>
           <Label htmlFor="manager_email">Promote a user to manager</Label>
           <Input id="manager_email" name="manager_email" type="email" placeholder="user@example.com" required />
-          <p className="mt-1 text-xs text-muted-foreground">Managers get venue-scoped access. User must already have an account.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Managers get venue-scoped access. If no account exists yet, one will be created without email confirmation.</p>
         </div>
         <div>
           <Label htmlFor="manager_venue">Initial venue</Label>
@@ -3991,3 +4022,4 @@ function HomeContentEditor({ companyId }: { companyId?: string }) {
     </div>
   );
 }
+
