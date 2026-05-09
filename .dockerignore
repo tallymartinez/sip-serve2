@@ -1,0 +1,7 @@
+.git
+.gitignore
+.output
+node_modules
+npm-debug.log
+README.md
+*.local
